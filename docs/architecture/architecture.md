@@ -57,8 +57,11 @@ routes → controllers → services → repositories → database
 | schemas | `<module>.schemas.ts` | Zod request/response schemas — the single source of truth for validation and OpenAPI | contain business logic or database access |
 
 Allowed dependency directions: `routes → controllers → services → repositories`.
-Everything else in that set is forbidden (`routes → repositories`,
-`controllers → repositories`, `repositories → services`, `services → controllers`).
+Everything else is forbidden. The complete list of forbidden pairs — including
+the cross-module and shared-directory rules this table does not reach — is
+`module-map.md` "Dependency direction rules", which owns it. It is deliberately
+not repeated here: this file carried a shorter list until 2026-09-01, and a
+second copy is how the two come to disagree.
 
 ### Why this shape
 

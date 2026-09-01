@@ -39,6 +39,14 @@ Prisma models is an architecture violation.
 
 ## Dependency direction rules
 
+**This list is the authoritative one** (`AGENTS.md` Canonical Sources).
+`architecture.md` AD-2 states the decision and the reasoning behind it and
+points here for the enumeration. `eslint.config.js` is the same list expressed
+mechanically — one `no-restricted-imports` block per layer, each message naming
+the rule it enforces — so `npm run lint` fails the build on a violation.
+Changing a rule here without changing that file leaves the two disagreeing, with
+the build still enforcing the old one.
+
 - `routes → controllers → services → repositories → src/lib/prisma.ts`.
 - `src/config` and `src/lib` are leaves relative to modules: they never import a
   module.

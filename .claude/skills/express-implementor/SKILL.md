@@ -110,13 +110,14 @@ Determine:
 
 Work only on the active User Story.
 
-If no active Story is configured, stop and report:
+If no active Story is configured, change nothing and return
+`verdict: BLOCKED` with `blocking_issues` naming the condition (see Result
+Envelope). The four verdicts in `docs/workflow/artifact-lifecycle.md` §2 are the
+only status vocabulary this Skill has: the orchestrator reads the envelope, not
+a status line in the chat.
 
-IMPLEMENTATION_BLOCKED: No active User Story is configured.
-
-If the workflow stage does not permit implementation, stop and report:
-
-IMPLEMENTATION_BLOCKED: Current workflow stage does not allow implementation.
+If the workflow stage does not permit implementation, stop the same way, with
+the current stage named in `blocking_issues`.
 
 Do not select another Story automatically.
 
@@ -175,16 +176,16 @@ a concrete dependency.
 
 # Artifact Authority
 
-Use the following authority order:
+The order of authority when artifacts conflict is `AGENTS.md`
+"Artifact-Driven Development". It is authoritative and **this Skill keeps no
+reordered copy of it** — the two lists disagreed about whether a resolved
+decision outranks an approved design, which is exactly what a second copy
+produces.
 
-1. Active User Story and Acceptance Criteria
-2. Approved Specification
-3. Approved API and persistence designs
-4. Resolved Story decisions
-5. Approved Impact Analysis
-6. Approved Implementation Plan
-7. Architecture and project conventions
-8. Existing implementation patterns
+That list ranks five artifacts. This stage consumes three more that it does not
+mention; they rank **below** all five, in this order: the approved Impact
+Analysis (predictive, and an input to the plan rather than a peer of it), then
+architecture and project conventions, then existing implementation patterns.
 
 Existing code does not override approved requirements.
 
@@ -249,16 +250,9 @@ If any input is `SUPERSEDED`, return `BLOCKED`.
 
 ## Open Decisions
 
-Search required artifacts for unresolved markers:
-
-- Open Decision
-- OPEN
-- TODO
-- TBD
-- FIXME
-- ???
-- unresolved
-- to be decided
+Search required artifacts for every marker listed in `AGENTS.md` "Open
+Decisions Policy". That list is authoritative and is deliberately not copied
+here: a copy that drops one marker is a scan that silently passes.
 
 Do not proceed when unresolved decisions affect:
 
@@ -403,8 +397,10 @@ Run through Bash and record actual exit codes:
 - `npm run lint`
 - `npm run typecheck`
 - `npm run test` (Vitest; `npx vitest run <path>` for a focused run)
-- `npm run build` when the plan requires a compiled artifact
+- `npm run build`
 
+These are the ones reached for during implementation. They are not the required
+set: that is `AGENTS.md` "Definition of Done", applied in full at Step 17.
 `.claude/skills/pre-commit-checklist/SKILL.md` is the canonical order.
 
 ## Database access
@@ -665,10 +661,15 @@ Run web-layer and contract tests after this step.
 Throw a domain error from the service; map it to HTTP in exactly one place.
 
 - **Throw**: a domain error from `src/lib/errors.ts`, carrying no HTTP type.
-  That file may not exist yet — `architecture.md` AD-6 says the first Story that
-  needs a domain error creates it, and that the class taxonomy is an Open
-  Decision. If this Story is that Story, the plan must already say so; if it does
-  not, raise the Open Decision instead of inventing a class hierarchy.
+  The class taxonomy is **decided** — `architecture.md` AD-6 names the base
+  class and the one subclass per failure *semantic*. Read the list there; do not
+  reason about what the classes should be. The file itself may not exist yet:
+  AD-6 says the first Story that needs a domain error creates it with the base
+  plus the subclasses that Story actually throws. If this Story is that Story,
+  implement it from AD-6 — that is executing a decision, not making one. An Open
+  Decision arises only for a failure semantic AD-6's list does not cover; a plan
+  silent about creating the file is a plan gap — loop-back key
+  `blocked_by_plan` — not a licence to invent a hierarchy.
 - **Map**: only in `src/middleware/errorHandler.ts`, using the status table in
   `architecture.md` AD-6 (validation failure -> `400`, unauthenticated -> `401`,
   forbidden -> `403`, not found -> `404`, conflict -> `409`, unsupported media
@@ -704,8 +705,10 @@ account state:
 - apply rate limiting to authentication endpoints as the approved design
   specifies;
 - read secrets only through `src/config/env.ts`; never hard-code one;
-- preserve secure default behavior (helmet on, `X-Powered-By` off, CORS
-  allow-list, explicit body size limit, explicit `trust proxy`).
+- leave the HTTP hardening in `security-conventions.md` SC-5 intact — that list
+  is authoritative and is deliberately not copied here. Relaxing an item in it
+  is a security change, and adding one is a design change; neither is an
+  implementation detail.
 
 For password registration:
 
@@ -714,7 +717,10 @@ For password registration:
 - hash before persistence;
 - ensure response DTOs exclude credential fields.
 
-If no approved password policy exists, stop and create an Open Decision.
+The password policy is **decided** in `security-conventions.md` SC-1 —
+implement exactly it, including the bounds it sets and the checks it explicitly
+defers to a later Story. Raise an Open Decision only for a password rule SC-1
+does not state.
 
 Do not invent password complexity requirements during implementation.
 
@@ -802,14 +808,25 @@ Run all validation commands required by:
 - project conventions;
 - test plan.
 
-At minimum:
+The set is `AGENTS.md` "Definition of Done" — every check it lists as **Always**,
+plus the conditional ones where the condition holds. **This Skill keeps no
+second copy of that list**, because a short copy silently drops a gate: the
+Stop hook and CI run the full set regardless, so a check omitted here is not a
+check skipped, it is a turn blocked after the report claimed `PASS`.
 
-- `npm run format:check`;
-- `npm run lint` (including the layering rule);
-- `npm run typecheck`;
-- `npm run test` (unit, integration/API, persistence, security, contract);
-- `npm run build` when the plan requires a compiled artifact;
-- `npm audit` when the change adds or updates a dependency.
+Two of the always-on checks are the ones a shorter list has historically lost,
+so they are named here as a reminder, not as a substitute for reading the
+table: `npm run openapi:check` (the only gate on contract drift) and
+`npm run check:cycles` (the only gate on import cycles — ESLint cannot see one).
+
+On the conditional ones:
+
+- `npm run audit:check` when the change adds or updates a dependency. That is
+  the project gate — it honours the accepted advisories in
+  `.audit-allowlist.json` and is what CI runs. Raw `npm audit` is not a
+  substitute: it fails on advisories the project has already accepted, so its
+  output is not a verdict.
+- `npm run validate:harness` when the change touched the harness.
 
 Record actual commands, tools, exit codes, and results.
 
@@ -851,100 +868,20 @@ Do not update workflow state. Do not create a commit or Pull Request.
 
 ---
 
-# Implementation Report Format
+# Output
 
-## Front Matter
+- `implementation_report` at
+  `docs/evidence/{story_id}-implementation-report.md`,
+  front matter per `docs/workflow/artifact-schema.md`,
+  `artifact_type: implementation_report`.
 
-Shared block from `docs/workflow/artifact-schema.md`
-(`artifact_type: implementation_report`), plus:
-`tests_status`, `build_status`, `diagnostics_status` (each `PASS` / `FAIL` /
-`NOT_RUN`), `security_sensitive` (bool). `created_at` / `updated_at` are runtime
-timestamps. `attempt` mirrors `workflow-state.yaml.attempt`.
-
-Illustrative (dates are examples only):
-
-    ---
-    artifact_type: implementation_report
-    story: US-001
-    version: 1
-    status: DRAFT
-    created_at: <runtime>
-    updated_at: <runtime>
-    produced_by: express-implementor
-    inputs:
-      - path: docs/plans/US-001-implementation-plan.md
-        version: 1
-      - path: docs/reviews/plans/US-001-plan-review.md
-        version: 1
-      - path: docs/tests/US-001-ac-test-matrix.md
-        version: 1
-    supersedes: null
-    tests_status: PASS
-    build_status: PASS
-    diagnostics_status: PASS
-    security_sensitive: true
-    ---
-
-## 1. Summary
-
-Describe:
-
-- implemented capability;
-- implementation status;
-- validation status;
-- important limitations.
-
-## 2. Source Artifacts
-
-List the exact paths and versions of:
-
-- User Story;
-- Specification;
-- designs;
-- Impact Analysis;
-- Implementation Plan;
-- Plan Review;
-- test artifacts.
-
-## 3. Implemented Acceptance Criteria
-
-For each Acceptance Criterion provide:
-
-- AC identifier;
-- implementation location (file + symbol);
-- relevant test (file path + full `describe` > `it` name, matching the
-  `ac_test_matrix` row);
-- current status.
-
-## 4. Change Set
-
-Every created / modified file, each classified `Planned` /
-`Required Supporting Change` / `Unexpected` / `Unrelated`, with the plan step or
-justification. Unrelated changes must not be included in the work.
-
-## 5. Validation Evidence
-
-Actual commands run, exit status, and results for: format check, lint,
-typecheck, build, unit tests, integration/API tests, persistence tests,
-security tests, contract tests, and `npm audit` where applicable. Do not claim
-`PASS` for a check that was not executed.
-
-## 6. Configuration Changes
-
-Every configuration change, with the approving plan step.
-
-## 7. Deviations and Discovered Problems
-
-Anything where repository reality diverged from the plan / impact analysis, and
-what was done about it.
-
-## 8. Open Decisions
-
-Any Open Decision touched or newly required. If a security-sensitive decision is
-missing, the implementation must stop and this report returns `BLOCKED`.
+Use `references/implementation-report-template.md` — it carries the exact
+section order, the front-matter block, and what each section must contain.
+**The template is the list; this file keeps no second copy of it**, because a
+copy drifts and a reader cannot tell which one is current. Open it before
+writing.
 
 ---
-
 # Validation Checklist
 
 Before returning the result envelope, confirm each of these:

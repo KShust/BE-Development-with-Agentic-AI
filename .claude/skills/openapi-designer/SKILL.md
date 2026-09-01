@@ -1,6 +1,10 @@
 ---
 name: openapi-designer
-description: Produces the OpenAPI contract and API design notes from an approved Specification. Owns the API_DESIGN stage.
+description: >
+  Produces the HTTP contract — the OpenAPI document and its API design notes —
+  from an approved Specification. Owns the API_DESIGN stage. Designs the
+  interface only: the persistence model behind it is db-designer at DB_DESIGN,
+  and the implementation of either is express-implementor.
 ---
 
 # Purpose

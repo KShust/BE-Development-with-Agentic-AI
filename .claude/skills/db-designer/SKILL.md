@@ -1,6 +1,11 @@
 ---
 name: db-designer
-description: Produces the database design and entity model from an approved Specification and API design. Owns the DB_DESIGN stage.
+description: >
+  Produces the persistence design — entities, attributes, explicit constraints,
+  indexes and relationships — from an approved Specification and API design.
+  Owns the DB_DESIGN stage. Designs the model only: the HTTP contract is
+  openapi-designer at API_DESIGN, and writing `schema.prisma` or a migration is
+  express-implementor.
 ---
 
 # Purpose

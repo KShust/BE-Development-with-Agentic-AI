@@ -17,6 +17,8 @@
       "Bash(npm run validate:harness)",
       "Bash(npm run validate:harness:test)",
       "Bash(npm run prisma:generate)",
+      "Bash(npx vitest run:*)",
+      "Bash(npx prisma validate)",
       "Bash(npx prisma migrate status)",
       "Bash(git status:*)",
       "Bash(git diff:*)",

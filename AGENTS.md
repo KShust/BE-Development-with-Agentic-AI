@@ -73,7 +73,15 @@ choice are `docs/architecture/architecture.md` AD-1.
 ## Build and Validation Commands
 
 `package.json` is the single definition of what each check runs. Invoke these
-script names; never inline an `npx …` equivalent, which drifts from them.
+script names — never a hand-written equivalent of one (`npx prettier --check .`
+for `npm run format:check`, a bare `npm audit` for `npm run audit:check`): the
+inline form drifts from the script and silently drops its flags and its
+allowlist.
+
+`npx` itself is not forbidden. It is correct where no script exists, for a
+narrower or read-only variant of one: `npx vitest run <path>` for a focused
+test run, `npx prisma migrate status` / `npx prisma validate` for inspection.
+Those supplement the table below; they never substitute for a row in it.
 
 | Command | What it checks |
 |---|---|
@@ -149,10 +157,18 @@ Pull Request.
 
 ## Open Decisions Policy
 
-Open Decisions are blockers. If an approved artifact contains `TODO`, `TBD`,
-`FIXME`, `???`, or an unresolved Open Decision that affects the next stage, do
-not proceed: document the gap, request clarification, update the Specification.
-Clarification is always preferred over guessing.
+Open Decisions are blockers. An approved artifact cannot be consumed while it
+still carries one, or any marker standing in for one.
+
+**The markers, in full:** `TODO`, `TBD`, `FIXME`, `???`, `OPEN`, `unresolved`,
+`to be decided`, and an Open Decision recorded as still open. This is the single
+list. A Skill that scans for them cites this section and keeps no copy of its
+own — a copy that drops one marker is a scan that silently passes, which is
+worse than no scan at all.
+
+If a marker affects the next stage, do not proceed: document the gap, request
+clarification, update the Specification. Clarification is always preferred over
+guessing.
 
 ---
 

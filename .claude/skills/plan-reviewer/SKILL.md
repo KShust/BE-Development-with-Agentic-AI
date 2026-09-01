@@ -73,9 +73,11 @@ Determine:
 
 Work only on the active Story unless explicitly instructed otherwise.
 
-If no active Story is configured, stop and report:
-
-PLAN_REVIEW_BLOCKED: No active User Story is configured.
+If no active Story is configured, review nothing and return
+`verdict: BLOCKED` with `blocking_issues` naming the condition (see Result
+Envelope). The four verdicts in `docs/workflow/artifact-lifecycle.md` §2 are the
+only status vocabulary this Skill has: the orchestrator reads the envelope, not
+a status line in the chat.
 
 ---
 
@@ -153,16 +155,9 @@ An empty or placeholder-only plan is a blocker.
 
 ## Open Decisions
 
-Inspect all required artifacts for unresolved markers:
-
-- Open Decision
-- OPEN
-- TODO
-- TBD
-- FIXME
-- ???
-- unresolved
-- to be decided
+Inspect all required artifacts for every marker listed in `AGENTS.md` "Open
+Decisions Policy". That list is authoritative and is deliberately not copied
+here: a copy that drops one marker is a scan that silently passes.
 
 An unresolved decision is blocking when it affects:
 
@@ -208,12 +203,15 @@ The plan must avoid unrelated refactoring and opportunistic improvements.
 
 ## Reviewable Increments
 
-The plan should be structured into small, ordered, verifiable steps.
+The plan must be structured into small, ordered, verifiable steps. A step no
+reviewer can check is a Major finding in this Skill's own classification
+("non-reviewable step"), so it is a requirement, not a preference.
 
 ## Evidence Before Completion
 
-Every significant implementation step should have a corresponding validation
-activity or observable completion criterion.
+Every significant implementation step must carry a validation activity or an
+observable completion criterion. Its absence is the Major finding "missing
+validation evidence"; Step 11 checks this against the plan step by step.
 
 ---
 
@@ -321,15 +319,19 @@ Check:
   reader);
 - reuse of existing components.
 
-Flag:
+The dependency rules themselves are `module-map.md`, and `eslint.config.js`
+enforces them mechanically — a plan that violates one produces a failing build,
+not a shipped defect. Flag it anyway, because catching it here costs a paragraph
+and catching it later costs an implementation pass. Then spend the rest of this
+step on what no linter can see:
 
-- routes or controllers importing Prisma;
-- business logic in routes or controllers;
-- database access outside a repository;
-- `express` types (`Request`/`Response`) reaching a service;
-- a Prisma model returned as an API shape;
-- a new module, shared directory, or abstraction layer without justification;
-- duplicated responsibilities.
+- business logic placed in a route or controller;
+- a Prisma model planned as an API shape (`architecture.md` AD-4);
+- validation planned somewhere other than the HTTP boundary (AD-5), or a
+  business rule planned into a schema;
+- a new module, shared directory, or abstraction layer without the
+  justification AD-8 requires;
+- responsibilities duplicated across steps, or across modules.
 
 ---
 
@@ -371,18 +373,25 @@ must never rely on `prisma db push` or an edit to an applied migration.
 
 ## Step 8: Verify Security Plan
 
-Check that the plan addresses relevant security requirements, including:
+Check that the plan addresses every security requirement the Story touches. The
+requirements live in `docs/architecture/security-conventions.md`; what follows
+names the sections to check the plan against, and is not a copy of the rules in
+them:
 
-- Argon2id password hashing;
-- password and token exposure prevention (response DTOs, logs, error bodies);
-- authentication boundaries (access-token verification, allow-listed algorithm);
-- refresh-cookie handling, rotation, and revocation;
-- authorization and ownership boundaries resolved from the token identity;
-- input validation at the HTTP boundary;
-- rate limiting on authentication endpoints;
-- sensitive-data logging and Pino redaction;
-- CORS allow-list, helmet, body size limit, `trust proxy`;
-- secret management through `src/config/env.ts` and `.env.example`.
+- passwords and hashing — SC-1;
+- roles and the default account state — SC-2;
+- authentication, token lifetimes, the refresh cookie, rate limiting — SC-3;
+- authorization and ownership resolved from the token identity — SC-4;
+- HTTP hardening (helmet, CORS, body limit, `trust proxy`) — SC-5;
+- dependencies — SC-6;
+- secrets, `src/config/env.ts`, `.env.example` — SC-7;
+- schema safety — SC-8;
+- what may never reach a response, an error body, or a log line — SC-9;
+- input validation at the HTTP boundary — `architecture.md` AD-5.
+
+Open the section before judging the plan against it. A plan that satisfies your
+recollection of a rule rather than its text is exactly what this stage exists to
+catch.
 
 If the Story handles passwords, credentials, tokens, personal data, or account
 state, absence of an explicit security step is a blocking finding.
@@ -432,7 +441,8 @@ efficient.
 
 ## Step 11: Verify Validation Steps
 
-Each significant step should define how its result will be checked.
+Each significant step must define how its result will be checked — the
+"Evidence Before Completion" principle, applied step by step.
 
 Planned evidence may include:
 
@@ -549,175 +559,17 @@ Do not modify the Implementation Plan. Do not update workflow state.
 
 ---
 
-# Output Format
+# Output
 
-Use the following structure.
+- `plan_review` at
+  `docs/reviews/plans/{story_id}-plan-review.md`,
+  front matter per `docs/workflow/artifact-schema.md`,
+  `artifact_type: plan_review`.
 
-## Front Matter
-
-Shared block from `docs/workflow/artifact-schema.md`
-(`artifact_type: plan_review`), plus finding counts. `created_at` / `updated_at`
-are runtime timestamps. Illustrative (dates are examples only):
-
-    ---
-    artifact_type: plan_review
-    story: US-001
-    version: 1
-    status: DRAFT
-    created_at: <runtime>
-    updated_at: <runtime>
-    produced_by: plan-reviewer
-    inputs:
-      - path: docs/plans/US-001-implementation-plan.md
-        version: 1
-      - path: docs/specifications/US-001-spec.md
-        version: 1
-      - path: docs/impact-analysis/US-001-impact-analysis.md
-        version: 1
-    supersedes: null
-    critical_findings: 0
-    major_findings: 0
-    minor_findings: 0
-    ---
-
-## 1. Review Summary
-
-State:
-
-- overall result;
-- plan readiness;
-- principal risks;
-- recommended next action.
-
-## 2. Reviewed Artifacts
-
-List all reviewed artifact paths and versions.
-
-## 3. Strengths
-
-List plan elements that are clear, safe, traceable, and executable.
-
-## 4. Scope Review
-
-Cover:
-
-- required scope;
-- missing scope;
-- scope expansion;
-- Out of Scope compliance.
-
-## 5. Requirements Traceability
-
-Map:
-
-- Acceptance Criterion;
-- Specification section;
-- design artifact;
-- Impact Analysis section;
-- plan step;
-- planned test or validation.
-
-## 6. Impact Analysis Coverage
-
-For each material Impact Analysis finding, state:
-
-- covered;
-- excluded with justification;
-- missing;
-- requires reanalysis.
-
-## 7. Architecture Review
-
-Record findings related to:
-
-- layers;
-- dependencies;
-- package ownership;
-- component responsibilities;
-- reuse versus duplication.
-
-## 8. API Review
-
-Record:
-
-- contract alignment;
-- status code handling;
-- request and response handling;
-- validation;
-- compatibility;
-- planned tests.
-
-## 9. Persistence Review
-
-Record:
-
-- entities;
-- constraints;
-- uniqueness;
-- nullability;
-- storage behavior;
-- schema implications;
-- planned tests.
-
-## 10. Security Review
-
-Record:
-
-- authentication;
-- authorization;
-- password handling;
-- sensitive data;
-- configuration;
-- security tests.
-
-## 11. Testing and Validation Review
-
-Record:
-
-- AC coverage;
-- test categories;
-- negative scenarios;
-- deterministic validation;
-- missing evidence.
-
-## 12. Execution Order Review
-
-Explain whether the order is feasible and dependency-safe.
-
-## 13. Reviewability
-
-Assess whether the planned change is suitable for one reviewable Pull Request.
-
-## 14. Findings
-
-For each finding provide:
-
-- ID;
-- severity;
-- location;
-- problem;
-- why it matters;
-- required correction;
-- loop-back target.
-
-## 15. Open Decisions
-
-List decisions that must be resolved before implementation.
-
-If none exist, explicitly state:
-
-No blocking Open Decisions were identified.
-
-## 16. Required Plan Changes
-
-Provide a concise list of changes the Planner must make.
-
-Do not rewrite the plan.
-
-## 17. Verdict Rationale
-
-Explain the verdict (see Result Envelope). Do not use `PROCEED_TO_*` /
-`RETURN_TO_*` labels — they are retired.
+Use `references/plan-review-template.md` — it carries the exact section order,
+the front-matter block, and what each section must contain. **The template is
+the list; this file keeps no second copy of it**, because a copy drifts and a
+reader cannot tell which one is current. Open it before writing.
 
 ---
 

@@ -17,8 +17,12 @@ satisfies the approved User Story and Acceptance Criteria.
 The Skill must design tests from approved requirements and contracts, not from
 implementation assumptions.
 
-Tests should be created before production implementation whenever technically
-practical.
+Tests are created **before** production implementation. This is not a
+preference to weigh: `stage-map.yaml` puts `TEST_WRITING` before
+`IMPLEMENTATION`, so a test written after the code it covers is a test written
+against an implementation instead of against a requirement. Where a test cannot
+be written yet, record why in the test-generation report — do not defer it
+silently to the implementer.
 
 ## Scope
 
@@ -127,22 +131,28 @@ architecture decisions.
 
 ## Testing Principles
 
-Tests must validate externally observable behavior wherever possible.
+Tests validate externally observable behavior. Asserting internal
+implementation structure is permitted only where that structure is itself an
+approved architectural requirement — everywhere else it is a defect in the
+test, because a refactor that changes no behavior must not break it.
 
-Prefer tests that remain valid after internal refactoring.
+Every Acceptance Criterion maps to at least one test scenario.
 
-Do not assert internal implementation structure unless the structure itself is
-an approved architectural requirement.
+Every security-sensitive Acceptance Criterion carries at least one negative
+scenario: a test that only proves the good path proves nothing about the
+control.
 
-Every Acceptance Criterion must map to at least one test scenario.
+Every validation rule carries its boundary scenarios — at the limit, and one
+step past it.
 
-Security-sensitive Acceptance Criteria should include negative scenarios.
+Every error response is asserted against the approved API contract: status,
+`code`, and body shape, not merely "an error was returned".
 
-Validation rules should include boundary scenarios.
+Every persistence behavior the Story defines is asserted against the approved
+database design, not against what Prisma happens to do by default.
 
-Error responses should be validated against the approved API contract.
-
-Persistence behavior should be validated against the approved database design.
+These are the coverage this stage is complete only when it has (see Completion
+Criteria). A missing one is a gap to report, never a scenario to drop.
 
 Tests must be deterministic and repeatable.
 
@@ -181,10 +191,19 @@ Use integration tests for:
 - JSON serialization and deserialization;
 - application configuration relevant to the Story.
 
-Integration tests run against a disposable test database, configured by the
-test environment — never the development database and never a shared one. The
-exact mechanism is an Open Decision in `AGENTS.md`; if it is unresolved and the
-Story needs database-backed tests, return `BLOCKED` rather than inventing one.
+Integration tests run against a disposable test database — never the
+development database and never a shared one. The mechanism is **decided**:
+`docs/architecture/persistence-conventions.md` PC-1 fixes the instance, the
+schema-loading command, the isolation strategy, and where the connection string
+comes from. Read it there and implement exactly that; it is not an open
+question, and no part of it is yours to choose.
+
+The infrastructure it describes does not exist yet. PC-1 lists what the first
+Story needing database-backed tests must build. If this Story is that Story, its
+approved Implementation Plan must already provide for building it; if the plan
+is silent, that is a gap in the plan, not a missing decision — return
+`BLOCKED` and name `IMPLEMENTATION_PLANNING` in `blocking_issues`
+(`TEST_WRITING` has no loop-back to planning, so a human routes it).
 
 Tests must not depend on data from previous test runs.
 
@@ -419,9 +438,14 @@ When applicable, verify that:
 - unrelated protected endpoints remain protected;
 - error responses do not expose internal implementation details.
 
-Do not invent a password policy.
+Do not invent a password policy. The project policy is **decided** in
+`docs/architecture/security-conventions.md` SC-1, which also states what it
+deliberately leaves out of scope. Assert exactly that policy and nothing beyond
+it — a boundary test for a rule SC-1 does not state asserts an invented
+requirement.
 
-If password requirements are absent or unresolved, return `BLOCKED`.
+Return `BLOCKED` only when the Story needs a password rule SC-1 does not
+state and no Open Decision covers it.
 
 ## API Contract Alignment
 

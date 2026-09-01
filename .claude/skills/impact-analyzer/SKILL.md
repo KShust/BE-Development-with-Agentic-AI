@@ -1,10 +1,12 @@
 ---
 name: impact-analyzer
 description: >
-  Analyzes the expected impact of an approved User Story on the existing
-  codebase, architecture, API, persistence model, tests, documentation,
-  and configuration. Use after Specification and design artifacts are
-  approved, but before creating an Implementation Plan.
+  Predicts where an approved User Story will land in the existing codebase,
+  architecture, API, persistence model, tests, documentation and configuration,
+  before any plan exists. Owns the IMPACT_ANALYSIS stage. Answers "what does
+  this touch" — it does not decide the order of work or write the steps
+  (implementation-planner), and it does not record what actually changed
+  afterwards (reconciliation-reviewer).
 ---
 
 # Purpose
@@ -69,9 +71,11 @@ Work only on the active User Story.
 
 Do not analyze inactive backlog items unless explicitly requested.
 
-If no active Story is defined, stop and report:
-
-IMPACT_ANALYSIS_BLOCKED: No active User Story is configured.
+If no active Story is defined, produce nothing and return
+`verdict: BLOCKED` with `blocking_issues` naming the condition (see Result
+Envelope). The four verdicts in `docs/workflow/artifact-lifecycle.md` §2 are the
+only status vocabulary this Skill has: the orchestrator reads the envelope, not
+a status line in the chat.
 
 ---
 
@@ -162,16 +166,9 @@ Do not infer missing architectural constraints from framework conventions.
 
 ## Open Decisions
 
-Inspect all relevant artifacts for unresolved markers:
-
-- Open Decision
-- OPEN
-- TODO
-- TBD
-- FIXME
-- ???
-- unresolved
-- to be decided
+Inspect all relevant artifacts for every marker listed in `AGENTS.md` "Open
+Decisions Policy". That list is authoritative and is deliberately not copied
+here: a copy that drops one marker is a scan that silently passes.
 
 If an unresolved decision can materially change the affected components,
 stop the analysis and create a blocked Impact Analysis report.
@@ -268,8 +265,9 @@ Do not yet map these requirements to implementation steps.
 
 Analyze:
 
-- project modules;
-- package responsibilities;
+- feature modules under `src/modules/` and the shared directories;
+- the responsibility each one owns (`module-map.md`); "package" in this
+  codebase means an npm package, never a source folder;
 - dependency direction;
 - architectural boundaries;
 - existing conventions;
@@ -357,7 +355,10 @@ Unit, integration, security, persistence, and contract tests.
 
 ### Configuration
 
-Application properties, profiles, dependencies, and runtime configuration.
+Environment variables (`src/config/env.ts`, `.env.example`), dependencies, and
+runtime configuration (middleware wiring, rate limits, CORS allow-list, body
+limits, log level). This project has no profile mechanism; per-environment
+values come from the environment, never from a profile.
 
 ### Documentation
 
@@ -424,211 +425,17 @@ Do not update design artifacts.
 
 ---
 
-# Output Format
+# Output
 
-The Impact Analysis uses the shared front matter from
-`docs/workflow/artifact-schema.md` (`artifact_type: impact_analysis`), plus an
-extension line `analysis_mode: TYPE_CHECKED | TEXT_ONLY`.
+- `impact_analysis` at
+  `docs/impact-analysis/{story_id}-impact-analysis.md`,
+  front matter per `docs/workflow/artifact-schema.md`,
+  `artifact_type: impact_analysis`.
 
-`created_at` / `updated_at` are runtime timestamps — never hard-coded.
-`status` starts `DRAFT`. `inputs[]` records each consumed artifact path + version
-(especially `specification` and `specification_review`).
-
-Illustrative front matter (dates are examples only):
-
-```yaml
----
-artifact_type: impact_analysis
-story: US-001
-version: 1
-status: DRAFT
-created_at: <runtime>
-updated_at: <runtime>
-produced_by: impact-analyzer
-inputs:
-  - path: docs/specifications/US-001-spec.md
-    version: 1
-  - path: docs/reviews/specifications/US-001-spec-review.md
-    version: 1
-  - path: docs/reviews/designs/US-001-design-review.md
-    version: 1
-supersedes: null
-analysis_mode: TYPE_CHECKED
----
-```
-
-# 1. Executive Summary
-
-Summarize:
-
-- change purpose;
-- expected scope;
-- affected architectural areas;
-- overall risk.
-
-# 2. Source Artifacts
-
-List every artifact used in the analysis.
-
-Include its path and relevant version or status.
-
-# 3. Business Capability Impact
-
-Describe which business capabilities are introduced, modified, or reused.
-
-# 4. Module Impact
-
-For every affected module, provide:
-
-- module name;
-- impact type;
-- rationale;
-- confidence.
-
-# 5. Layer Impact
-
-For every affected module layer, provide:
-
-- module and layer (e.g. `auth` / service);
-- responsibility;
-- impact type;
-- rationale;
-- the architecture constraint that applies (from `module-map.md`).
-
-# 6. Expected File Changes
-
-Use separate sections:
-
-## Files To Create
-## Files To Modify
-## Files To Reuse
-## Files Potentially Affected
-
-For each item provide:
-
-- expected path;
-- responsibility;
-- reason;
-- source requirement;
-- confidence: HIGH, MEDIUM, or LOW.
-
-Do not present uncertain file paths as facts.
-
-# 7. API Impact
-
-Describe:
-
-- new or modified operations;
-- request and response impact;
-- error behavior;
-- compatibility concerns;
-- relevant OpenAPI sections.
-
-# 8. Persistence Impact
-
-Describe:
-
-- Prisma models;
-- fields and types;
-- constraints (nullability, length, uniqueness, relations);
-- indexes;
-- repository behavior;
-- the migration the change implies;
-- data-migration or backfill implications.
-
-Every schema change requires a committed Prisma migration; `prisma db push`
-against a shared database is never an acceptable substitute
-(`docs/architecture/persistence-conventions.md` PC-2).
-
-# 9. Security Impact
-
-Describe:
-
-- authentication impact;
-- authorization impact;
-- sensitive data;
-- password or credential handling;
-- exposure risks;
-- security configuration changes.
-
-# 10. Testing Impact
-
-List expected:
-
-- unit tests;
-- integration tests;
-- security tests;
-- persistence tests;
-- API or contract tests.
-
-Map testing areas to Acceptance Criteria.
-
-# 11. Configuration and Dependency Impact
-
-Identify:
-
-- environment variables (`src/config/env.ts`, `.env.example`);
-- `package.json` dependency or script changes;
-- middleware wiring in `src/app.ts`;
-- runtime changes (logging, rate limits, CORS allow-list, body limits);
-- external service changes.
-
-New dependencies require explicit human approval.
-
-# 12. Documentation Impact
-
-List documentation that may need updates.
-
-# 13. Risks
-
-For every risk provide:
-
-- severity;
-- description;
-- affected area;
-- mitigation;
-- human decision required.
-
-# 14. Open Decisions
-
-List unresolved decisions affecting planning.
-
-If none exist, explicitly state:
-
-No blocking Open Decisions were identified.
-
-# 15. Planning Inputs
-
-Provide a concise list of facts that the Implementation Planner must consume.
-
-Do not convert these facts into implementation steps.
-
-# 16. Traceability
-
-Map:
-
-- Acceptance Criterion;
-- Specification section;
-- Design artifact;
-- affected system area;
-- expected test category.
-
-# 17. Analysis Limitations
-
-State:
-
-- unavailable tools;
-- missing documents;
-- low-confidence predictions;
-- areas that require reanalysis.
-
-# 18. Readiness Result
-
-State the verdict and explain it. See the Result Envelope section below for the
-mapping: a clean analysis is `PASS`; an analysis with residual risks is `PASS`
-with `non_blocking_findings`; an un-analysable Story is `BLOCKED`; an analysis
-that shows an upstream artifact must change is `CHANGES_REQUIRED` with a
-loop-back.
+Use `references/impact-analysis-template.md` — it carries the exact section
+order, the front-matter block, and what each section must contain. **The
+template is the list; this file keeps no second copy of it**, because a copy
+drifts and a reader cannot tell which one is current. Open it before writing.
 
 ---
 

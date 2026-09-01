@@ -1,11 +1,15 @@
 ---
 name: implementation-verifier
 description: >
-  Independently verifies a Node/TypeScript Express implementation against the
-  active User Story, Acceptance Criteria, approved Specification, API and database
-  designs, Implementation Plan, tests, architecture rules, and actual
-  repository state. Use after implementation and before security review,
-  reconciliation, or Pull Request creation.
+  Independently demonstrates whether the implementation satisfies the active
+  User Story. Gathers its own evidence — runs the build, the checks and the
+  tests rather than trusting the Implementation Report — and verifies each
+  Acceptance Criterion against the code and the repository as they actually
+  are. Owns the IMPLEMENTATION_VERIFICATION stage, after IMPLEMENTATION.
+  Answers "does it do what was required". It does not judge whether the
+  artifacts still agree with each other (reconciliation-reviewer), whether the
+  result is safe (security-reviewer), or whether the diff reads well
+  (pr-reviewer).
 ---
 
 # Purpose
@@ -33,18 +37,14 @@ change set, create a Pull Request, or mark the Story as complete.
 
 # Position in the Workflow
 
-Canonical workflow: `docs/workflow/stage-map.yaml`. Relevant slice:
+`docs/workflow/stage-map.yaml` is the workflow. `docs/workflow/stages.md`
+renders it in full and is the only rendering the harness validator checks
+against `stage_order`; this file keeps no third copy.
 
-    IMPLEMENTATION
-    → IMPLEMENTATION_VERIFICATION   (this Skill)
-    → SECURITY_REVIEW
-    → RECONCILIATION
-    → PR_REVIEW
-    → HUMAN_PR_APPROVAL
-    → PR_PREPARATION → READY_FOR_PR → COMPLETED → ARCHIVED
-
-This Skill owns only the `IMPLEMENTATION_VERIFICATION` stage. Loop-back
-(`stage-map.yaml`): `changes_required` → `IMPLEMENTATION`.
+This Skill owns `IMPLEMENTATION_VERIFICATION`, which runs after
+`IMPLEMENTATION` and before `SECURITY_REVIEW`. Loop-back (`stage-map.yaml`):
+`changes_required` → `IMPLEMENTATION`. For anything further downstream, read the
+map rather than a copy here.
 
 ---
 
@@ -128,15 +128,14 @@ Determine:
 
 Work only on the active User Story.
 
-If no active Story is configured, stop and report:
+If no active Story is configured, verify nothing and return
+`verdict: BLOCKED` with `blocking_issues` naming the condition (see Result
+Envelope). The four verdicts in `docs/workflow/artifact-lifecycle.md` §2 are the
+only status vocabulary this Skill has: the orchestrator reads the envelope, not
+a status line in the chat.
 
-    IMPLEMENTATION_VERIFICATION_BLOCKED:
-    No active User Story is configured.
-
-If the workflow stage does not allow verification, stop and report:
-
-    IMPLEMENTATION_VERIFICATION_BLOCKED:
-    Current workflow stage does not allow Implementation Verification.
+If the workflow stage does not allow verification, stop the same way, with the
+current stage named in `blocking_issues`.
 
 Do not select or activate another Story automatically.
 
@@ -274,16 +273,9 @@ Do not overwrite current changes.
 
 ## Open Decisions
 
-Search required artifacts for unresolved markers:
-
-- Open Decision
-- OPEN
-- TODO
-- TBD
-- FIXME
-- ???
-- unresolved
-- to be decided
+Search required artifacts for every marker listed in `AGENTS.md` "Open
+Decisions Policy". That list is authoritative and is deliberately not copied
+here: a copy that drops one marker is a scan that silently passes.
 
 An unresolved decision is blocking when it affects observable behavior,
 security, API, persistence, validation, architecture, or testing.
@@ -383,7 +375,14 @@ Run through Bash and record the actual exit code:
 - `npm run format:check`
 - `npm run lint`
 - `npm run typecheck`
-- `npm run build` (when the plan requires the compiled output)
+- `npm run openapi:check` — contract drift; the only gate on it
+- `npm run check:cycles` — import cycles; ESLint cannot see one
+- `npm run build`
+
+This is the always-on half of `AGENTS.md` "Definition of Done", which is the
+authoritative list — read it there rather than treating these five lines as the
+set. Verification that runs fewer checks than the Stop hook and CI is not
+independent evidence; it is a weaker copy of it.
 
 ## Test execution
 
@@ -510,8 +509,9 @@ Generated runtime artifacts must not be treated as implementation deliverables.
 
 ## Step 6: Verify Compilation and Build
 
-Run `npm run typecheck`, `npm run lint`, and (when the plan requires the
-compiled output) `npm run build`.
+Run `npm run typecheck`, `npm run lint`, and `npm run build`. A type-check is
+not a build (`architecture.md` AD-1: different `rootDir`, and it emits), so the
+build is run whether or not the plan asks for the compiled output.
 
 Collect:
 
@@ -886,240 +886,19 @@ after this verification.
 
 ---
 
-# Verification Report Format
+# Output
 
-## Front Matter
+- `implementation_verification` at
+  `docs/verification/{story_id}-implementation-verification.md`,
+  front matter per `docs/workflow/artifact-schema.md`,
+  `artifact_type: implementation_verification`.
 
-Shared block from `docs/workflow/artifact-schema.md`
-(`artifact_type: implementation_verification`), plus:
-`build_status`, `tests_status` (`PASS` / `FAIL` / `NOT_RUN`),
-`typecheck_status`, `lint_status`,
-`acceptance_criteria_verified`, `acceptance_criteria_total`,
-`critical_findings`, `major_findings`, `minor_findings`,
-`analysis_mode` (`TYPE_CHECKED` / `TEXT_ONLY`).
-`created_at` / `updated_at` are runtime timestamps.
-
-Illustrative (dates are examples only):
-
-    ---
-    artifact_type: implementation_verification
-    story: US-001
-    version: 1
-    status: DRAFT
-    created_at: <runtime>
-    updated_at: <runtime>
-    produced_by: implementation-verifier
-    inputs:
-      - path: docs/evidence/US-001-implementation-report.md
-        version: 1
-      - path: docs/specifications/US-001-spec.md
-        version: 1
-      - path: docs/plans/US-001-implementation-plan.md
-        version: 1
-    supersedes: null
-    build_status: PASS
-    typecheck_status: PASS
-    lint_status: PASS
-    tests_status: FAIL
-    acceptance_criteria_verified: 4
-    acceptance_criteria_total: 5
-    critical_findings: 1
-    major_findings: 1
-    minor_findings: 0
-    analysis_mode: TYPE_CHECKED
-    ---
-
-## 1. Executive Summary
-
-Summarize:
-
-- verification result;
-- build status;
-- test status;
-- Acceptance Criteria coverage;
-- critical risks;
-- recommended next action.
-
-## 2. Verified Artifacts
-
-List exact paths and versions of all reviewed artifacts.
-
-## 3. Environment
-
-Record:
-
-- Node version;
-- package manager and lockfile state;
-- TypeScript version and `strict` settings actually in effect;
-- `NODE_ENV` and any test-specific configuration;
-- database target used for tests;
-- verification commands run;
-- checks that could not be executed.
-
-Do not record secrets.
-
-## 4. Repository State
-
-Record:
-
-- branch;
-- modified files;
-- untracked files;
-- deleted files;
-- unrelated changes;
-- generated runtime artifacts.
-
-## 5. Build Evidence
-
-Record:
-
-- command or tool;
-- result;
-- exit status when available;
-- errors;
-- relevant warnings.
-
-## 6. Test Evidence
-
-Record:
-
-- commands run (`npm run test`, `npx vitest run <path>`);
-- test files or suites;
-- results;
-- failures;
-- skipped tests;
-- limitations.
-
-## 7. Acceptance Criteria Matrix
-
-For every Acceptance Criterion record:
-
-- ID;
-- required behavior;
-- implementation evidence;
-- test evidence;
-- status;
-- findings.
-
-## 8. API Contract Verification
-
-Record:
-
-- matched operations;
-- mismatches;
-- missing behavior;
-- extra undocumented behavior;
-- status code verification;
-- response data exposure.
-
-## 9. Persistence Verification
-
-Record:
-
-- expected design;
-- `prisma/schema.prisma` evidence;
-- migration SQL evidence;
-- constraint mismatches;
-- query shape (N+1, unbounded reads, sensitive columns selected);
-- runtime artifact handling.
-
-## 10. Architecture Verification
-
-Record:
-
-- module and layer placement;
-- dependency direction;
-- layer responsibilities;
-- the import checks actually run;
-- violations.
-
-## 11. Validation and Error Handling
-
-Record:
-
-- input validation;
-- error mapping;
-- runtime activation;
-- negative-path evidence.
-
-## 12. Basic Security Readiness
-
-Record:
-
-- password and token handling;
-- sensitive response fields;
-- logging and redaction;
-- authentication and authorization wiring;
-- concerns forwarded to Security Review.
-
-## 13. Configuration Verification
-
-Record:
-
-- relevant settings;
-- plan alignment;
-- unsafe defaults;
-- undocumented changes.
-
-## 14. Test Quality Review
-
-Record:
-
-- AC coverage;
-- positive scenarios;
-- negative scenarios;
-- false-positive risks;
-- missing tests.
-
-## 15. Scope Verification
-
-Compare:
-
-- planned files;
-- actual files;
-- required supporting files;
-- unexpected files;
-- unrelated files.
-
-## 16. Implementation Report Accuracy
-
-List discrepancies between the report and repository evidence.
-
-If none exist, state:
-
-    The Implementation Report is materially consistent with observed evidence.
-
-## 17. Findings
-
-For every finding provide:
-
-- ID;
-- severity;
-- category;
-- affected artifact or file;
-- observed evidence;
-- expected behavior;
-- why it matters;
-- required correction;
-- loop-back target.
-
-## 18. Verification Limitations
-
-List:
-
-- checks not executed;
-- unavailable tools;
-- environment restrictions;
-- low-confidence conclusions;
-- remaining manual checks.
-
-## 19. Verdict Rationale
-
-Explain the verdict (see Result Envelope below). Do not use `PROCEED_TO_*` /
-`RETURN_TO_*` labels — they are retired.
+Use `references/verification-report-template.md` — it carries the exact section
+order, the front-matter block, and what each section must contain. **The
+template is the list; this file keeps no second copy of it**, because a copy
+drifts and a reader cannot tell which one is current. Open it before writing.
 
 ---
-
 # Validation Checklist
 
 Before returning the result envelope, confirm each of these:

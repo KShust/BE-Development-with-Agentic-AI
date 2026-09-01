@@ -1,6 +1,10 @@
 ---
 name: spec-writer
-description: Creates a complete, implementation-ready Specification from a clarified User Story. Owns the SPECIFICATION stage.
+description: >
+  Creates a complete, implementation-ready Specification from a clarified User
+  Story, and is also the only Skill that revises one — a SPEC_REVIEW loop-back
+  or a rejected human gate comes back here, never to the reviewer. Owns the
+  SPECIFICATION stage.
 ---
 
 # Purpose

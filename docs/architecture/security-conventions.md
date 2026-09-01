@@ -15,12 +15,13 @@ authentication_model: stateless JWT access token + rotated refresh cookie
 access_token:
   transport: Authorization: Bearer
   algorithm: explicitly configured allow-list (never taken from the token header)
-  lifetime: short-lived (configured via JWT_ACCESS_TTL)
+  lifetime: 15 minutes           # DECIDED 2026-09-01 (SC-3); from JWT_ACCESS_TTL
 refresh_token:
   transport: HttpOnly + Secure + SameSite=Strict cookie
   rotation: required on every refresh
   revocation: required (storage mechanism is an Open Decision)
   storage: hashed at rest, never plaintext
+  lifetime: 30 days              # DECIDED 2026-09-01 (SC-3); from JWT_REFRESH_TTL
 password_hashing:
   algorithm: Argon2id
   cost_parameters:               # DECIDED 2026-09-01 (SC-1); constant, not env
@@ -175,6 +176,38 @@ database_schema:
     number to routes it does not create.
   - Exceeding a limit returns `429` with the standard error body
     (`api-conventions.md` AC-5).
+- **Access-token lifetime — decided** by a human on 2026-09-01:
+  **15 minutes**, supplied as `JWT_ACCESS_TTL`.
+  - An access token is **not revocable** — nothing withdraws it before it
+    expires — so its lifetime is exactly the window a stolen one keeps working.
+    Fifteen minutes bounds that window while leaving a normal session
+    refreshing a few times an hour rather than on every request.
+  - It is an environment variable, not a constant, because it is a deployment
+    property rather than part of the API contract — unlike the Argon2 cost
+    parameters (SC-1), which are constants precisely so no environment can
+    weaken them. Widening the TTL is still a security change: it belongs in a
+    commit and a review, not in an ad-hoc environment override.
+  - "Short-lived" elsewhere in the documents (`api-conventions.md` AC-7,
+    `non-functional-requirements.md` NFR-001, the glossary) refers to this
+    value. It is stated here once; do not restate the number there.
+- **Refresh-token lifetime — decided** by a human on 2026-09-01: **30 days**,
+  supplied as `JWT_REFRESH_TTL`.
+  - The two values are one decision. 30 days against 15 minutes is the
+    asymmetry the authentication model rests on: the short-lived half is not
+    revocable, the long-lived half is rotated on every use, revocable, and
+    treated as compromised on reuse. A refresh lifetime close to the access
+    lifetime would erase that and force re-authentication as the only session
+    mechanism; one without rotation and revocation would make 30 days
+    indefensible.
+  - What 30 days actually bounds: how long a customer may be idle before the
+    next request requires signing in again, and how long a refresh token stolen
+    but never used stays usable. Rotation, revocation, and reuse detection
+    bound the used case; only expiry bounds the unused one.
+  - Shortening it later is a user-visible change (sessions end sooner);
+    lengthening it widens the unused-token window. Either is a security change:
+    a commit and a review, never an environment override.
+- Neither variable is added to `src/config/env.ts` before the Story that needs
+  it (SC-7). Registration issues no token, so US-001 adds neither.
 - Account-lockout policy beyond rate limiting remains an Open Decision — do not
   invent thresholds.
 

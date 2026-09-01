@@ -34,15 +34,22 @@ wired, and no tests.
   (compose service, `.env.test`, `globalSetup`, truncation fixture, CI service
   block) is owed by the first Story that needs database-backed tests, so
   `tests/integration/` is empty until then. See `tests/README.md`.
-- `npm audit` reports 3 high findings in one chain: `prisma` (CLI) →
-  `@prisma/config` → `deepmerge-ts` (stack exhaustion when merging recursive
-  object graphs). Reviewed 2026-08-31 and **accepted**: the only input to that
-  merge is our own committed Prisma config, there is no attacker-controlled
-  path, and no fixed release exists on Prisma 7.10 (npm's suggested "fix" is a
-  downgrade to Prisma 6). Re-check when Prisma publishes an update. The
-  acceptance is recorded by advisory id in `.audit-allowlist.json`;
-  `npm run audit:check` fails on any high/critical advisory that is not listed,
-  and equally on a listed one that has been fixed upstream.
+- `npm audit` reports 4 high findings, all of them reached through Prisma 7.10
+  and all accepted by advisory id in `.audit-allowlist.json`, which carries the
+  full reasoning for each:
+  - `prisma` (CLI) → `@prisma/config` → `deepmerge-ts`, stack exhaustion when
+    merging recursive object graphs. Reviewed 2026-08-31: the only input to that
+    merge is our own committed Prisma config, so no attacker-controlled path
+    exists.
+  - `@prisma/client` → `prisma` → `mysql2`, auth-plugin downgrade to
+    `mysql_clear_password`. Reviewed 2026-09-01: Prisma bundles a driver per
+    supported database, and this project has a single PostgreSQL datasource
+    (PC-1), so the MySQL driver is never loaded.
+
+  Neither has a fix short of a downgrade to Prisma 6, a breaking stack change
+  that contradicts AD-1. `npm run audit:check` fails on any high/critical
+  advisory that is not listed, and equally on a listed one that has been fixed
+  upstream, so a stale exception cannot rot unnoticed.
 - The OpenAPI generator is wired (`src/lib/openapi.ts`,
   `scripts/generate-openapi.ts`, `npm run openapi:generate` /
   `npm run openapi:check`) and `docs/api/openapi.json` is committed. No module

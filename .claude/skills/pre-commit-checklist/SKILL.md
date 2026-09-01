@@ -17,14 +17,11 @@ command and exit status — a step that was not executed is not a passing step.
    wiring, and the workflow state files against each other.
 4. **Type-check** — `npm run typecheck`. Never reach for `any`, `@ts-ignore`,
    `!`, or a forcing `as` to make this pass.
-5. **Layering** — `npm run lint` enforces this mechanically; the rules exist so
-   a violation is a build failure, not a review comment:
-   - no route, controller, or middleware imports Prisma;
-   - no service imports `express` types, cookies, or headers;
-   - no module imports another module's repository;
-   - `process.env` appears only in `src/config/env.ts`;
-   - no `console.log` / `console.error` under `src/`.
-   Rules: `docs/architecture/module-map.md`.
+5. **Layering** — nothing extra to run: step 2 already covers it.
+   `eslint.config.js` encodes the dependency rules from
+   `docs/architecture/module-map.md`, so a violation is a build failure naming
+   the rule it broke, not a review comment. The list is not repeated here; read
+   it there. What lint cannot see is the next step.
 6. **Circular dependencies** — `npm run check:cycles`. ESLint enforces the
    layering but cannot see a cycle: it judges one file at a time, so a loop
    between two modules' services is invisible to it. `dpdm` walks the whole
@@ -62,13 +59,17 @@ command and exit status — a step that was not executed is not a passing step.
 
 Relationship to CI and to the Stop hook:
 
-- `.github/workflows/ci.yml` runs every step of this list that is a command, and
-  only those — it cannot carry out steps 6, 9, 11, 12, 13, or 14, which need a
-  reader. Its order differs (it runs the harness checks first, being cheapest).
-  The set is what matters, not the sequence.
-- `.claude/hooks/validate-full.py` enforces the code commands at the end of any
-  turn that touched code, so steps 1, 2, 4, 7, 8, 10 — and step 3 when the change
-  touched the harness — are not optional in practice.
+- `.github/workflows/ci.yml` runs every step of this list that is a command:
+  1, 2, 3, 4, 5 (which is the same `npm run lint`), 6, 7, 8, 10, and the
+  `npm run audit:check` half of 12. What it cannot do is the half that needs a
+  reader: 9, 11, 13, 14, the semantic comparison against the approved contract
+  in 10, and the "was this dependency approved" judgement in 12. Its order
+  differs — it runs the harness checks first, being cheapest — and the set is
+  what matters, not the sequence.
+- `.claude/hooks/validate-full.py` enforces the same commands at the end of any
+  turn that touched code — 1, 2, 4, 6, 7, 8, 10 — plus 3 when the change touched
+  the harness and `npm run audit:check` when it touched dependencies. Those are
+  therefore not optional in practice.
 - Therefore: every command here passing means CI passes. The reverse does not
   hold. CI going green says nothing about the steps only a person or an agent can
   carry out.

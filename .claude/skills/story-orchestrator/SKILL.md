@@ -352,8 +352,8 @@ For every invocation, ensure a `history.jsonl` event is appended (or, for
 Do not log secrets: no tokens, authorization headers, passwords, password
 hashes, database credentials, private keys, secret env values.
 
-Tool-usage telemetry (`docs/hooks/tool-usage.jsonl`) is separate and not managed
-by this Skill.
+Tool-usage telemetry (`.claude/logs/tool-usage.jsonl`, git-ignored) is separate
+and not managed by this Skill.
 
 Telemetry is execution evidence, never requirement authority.
 

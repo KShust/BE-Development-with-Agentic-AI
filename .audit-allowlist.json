@@ -15,6 +15,14 @@
       "reviewed": "2026-08-31",
       "reason": "Stack exhaustion when merging recursive object graphs. Reached only through @prisma/client -> prisma -> @prisma/config, whose sole merge input is our own committed Prisma configuration; no attacker-controlled path exists. No fixed release on Prisma 7.10 -- npm's suggested fix is a downgrade to Prisma 6, a breaking stack change. See docs/knowledge/project-state.md.",
       "recheck": "When Prisma publishes a release that bumps deepmerge-ts to >=8."
+    },
+    {
+      "id": "GHSA-3f6p-5ww8-9rcr",
+      "package": "mysql2",
+      "severity": "high",
+      "reviewed": "2026-09-01",
+      "reason": "Auth plugin downgrade to mysql_clear_password: a hostile MySQL server can make the client send the password in plaintext. Reached only as a transitive dependency of @prisma/client -> prisma, which bundles a driver per supported database; mysql2 3.15.3 is installed but never loaded, because this project has a single PostgreSQL datasource and PostgreSQL is the only permitted database (persistence-conventions.md PC-1). The vulnerable handshake therefore never runs, and no configuration in current scope can reach it. Fixed in mysql2 >=3.22.0, which prisma 7.10 does not yet pin; npm's only offered fix is a downgrade to prisma 6.19.3, a breaking major change that contradicts architecture.md AD-1 (Prisma ORM 7).",
+      "recheck": "When Prisma publishes a release pinning mysql2 >=3.22.0 -- or immediately, and as a blocker rather than a re-check, if any Story ever introduces a MySQL datasource, which would make this path live."
     }
   ]
 }

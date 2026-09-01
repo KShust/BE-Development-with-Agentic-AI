@@ -33,18 +33,15 @@ risk, create a Pull Request, approve merge, or mark the Story complete.
 
 # Position in the Workflow
 
-Canonical workflow: `docs/workflow/stage-map.yaml`. Relevant slice:
+`docs/workflow/stage-map.yaml` is the workflow. `docs/workflow/stages.md`
+renders it in full and is the only rendering the harness validator checks
+against `stage_order`; this file keeps no third copy.
 
-    IMPLEMENTATION_VERIFICATION
-    → SECURITY_REVIEW            (this Skill)
-    → RECONCILIATION
-    → PR_REVIEW
-    → HUMAN_PR_APPROVAL
-    → PR_PREPARATION → READY_FOR_PR → COMPLETED → ARCHIVED
-
-This Skill owns only the `SECURITY_REVIEW` stage. Loop-back
+This Skill owns `SECURITY_REVIEW`, which runs after
+`IMPLEMENTATION_VERIFICATION` and before `RECONCILIATION`. Loop-back
 (`stage-map.yaml`): `changes_required` → `IMPLEMENTATION`,
-`invalid_security_design` → `API_DESIGN`.
+`invalid_security_design` → `API_DESIGN`. For anything further downstream, read
+the map rather than a copy here.
 
 ---
 
@@ -170,15 +167,14 @@ Determine:
 
 Work only on the active User Story.
 
-If no active Story is configured, stop and report:
+If no active Story is configured, review nothing and return
+`verdict: BLOCKED` with `blocking_issues` naming the condition (see Result
+Envelope). The four verdicts in `docs/workflow/artifact-lifecycle.md` §2 are the
+only status vocabulary this Skill has: the orchestrator reads the envelope, not
+a status line in the chat.
 
-    SECURITY_REVIEW_BLOCKED:
-    No active User Story is configured.
-
-If the workflow stage does not permit Security Review, stop and report:
-
-    SECURITY_REVIEW_BLOCKED:
-    Current workflow stage does not allow Security Review.
+If the workflow stage does not permit Security Review, stop the same way, with
+the current stage named in `blocking_issues`.
 
 Do not select another Story automatically.
 
@@ -318,24 +314,23 @@ practice — an unstated rule is an Open Decision, not a default.
 
 ## Open Decisions
 
-Search required artifacts for unresolved markers:
-
-- Open Decision
-- OPEN
-- TODO
-- TBD
-- FIXME
-- ???
-- unresolved
-- to be decided
+Search required artifacts for every marker listed in `AGENTS.md` "Open
+Decisions Policy". That list is authoritative and is deliberately not copied
+here: a copy that drops one marker is a scan that silently passes.
 
 Security-sensitive Open Decisions are blockers.
 
-Examples include:
+The list below names the **areas** in which an unresolved decision blocks, not a
+set of questions that are currently open. Several are already decided — the
+password policy and the Argon2id parameters were settled on 2026-09-01
+(`security-conventions.md` SC-1), and the register rate limit in SC-3. Whether
+an area is open is determined by `AGENTS.md` "Open Decisions" and the
+convention documents as they stand at review time, never by this list. Treating
+a decided matter as a blocker because it is named here is itself a finding.
 
-- password policy;
-- password hashing algorithm and parameters;
-- password policy;
+Areas:
+
+- password policy, and password hashing algorithm and parameters;
 - account activation behavior;
 - email uniqueness and normalization behavior;
 - authentication requirements and token lifetimes;
@@ -384,8 +379,9 @@ unless the approved requirements explicitly allow it.
 
 ## Least Privilege
 
-Accounts, endpoints, tools, database access, and configuration should receive
-only the permissions required by the current Story.
+Accounts, endpoints, tools, database access, and configuration receive only
+the permissions the current Story requires. Anything broader is a finding, and
+its severity follows what the surplus permission would allow.
 
 ## Defense in Depth
 
@@ -494,8 +490,17 @@ files changed after it:
 
 ## Dependency review
 
-- `npm audit` (and `npm audit --omit=dev` for the runtime surface) when the
-  change touches dependencies; record the actual output.
+- `npm run audit:check` is the gate when the change touches dependencies: it
+  fails on any high/critical advisory not accepted by id in
+  `.audit-allowlist.json`, and CI blocks on it. Its verdict is the one that
+  counts — never report a raw `npm audit` line as a gate failure.
+- Raw `npm audit` (and `npm audit --omit=dev` for the runtime surface) is
+  admissible as *additional* evidence when you need to see advisories the
+  allowlist already accepts. Record the actual command and output, and say which
+  of the two produced a finding.
+- An entry in `.audit-allowlist.json` is in scope for this review: an acceptance
+  whose stated reason no longer holds, or which has no reason recorded, is a
+  finding (`security-conventions.md` SC-6).
 - Compare `package.json` / `package-lock.json` diffs against the approved plan.
 
 ## Runtime
@@ -765,16 +770,22 @@ read the migration SQL.**
 
 Inspect `src/config/env.ts`, `.env.example`, `src/app.ts`, and `.gitignore`.
 
-Verify that every required variable is validated at startup and the process fails
-fast when one is missing or invalid; that no `process.env` is read outside
-`src/config/env.ts`; that no secret, token, connection string, or `.env` file is
-committed and `.env.example` carries placeholders only; that CORS origins come
-from configuration and never a wildcard with credentials; that `trust proxy`
-matches the real deployment topology; that cookie `secure` is not disabled
-outside local development and HTTPS is assumed in production; that
-development-only settings (verbose logging, permissive CORS, disabled rate
-limits) cannot become the runtime default; and that no debugging endpoint, admin
-route, or introspection surface was added without an approved decision.
+The requirements are `security-conventions.md` SC-5 (HTTP hardening) and SC-7
+(secrets and repository hygiene). Read them there; this Skill does not restate
+them. What this stage adds is confirming they hold **at runtime**, not merely in
+a file:
+
+- every required variable is validated at startup and the process fails fast
+  when one is missing or invalid (`architecture.md` AD-7);
+- no `process.env` is read outside `src/config/env.ts`;
+- the effective values satisfy SC-5, not just the code that reads them — an
+  allow-list assembled from configuration can still evaluate to a wildcard, and
+  a `trust proxy` setting can still fail to match the real topology;
+- cookie `secure` is not disabled outside local development;
+- development-only settings (verbose logging, permissive CORS, disabled rate
+  limits) cannot become the runtime default;
+- no debugging endpoint, admin route, or introspection surface was added
+  without an approved decision.
 
 A committed live secret, or an externally reachable debug or admin surface, is a
 Critical finding.
@@ -888,10 +899,12 @@ Examples:
 - maintainability issue in security configuration;
 - defense-in-depth recommendation not required by current Acceptance Criteria.
 
-### Informational
-
-Useful observation with no required correction. Informational observations must
-not inflate severity.
+There is no fourth level. `artifact-lifecycle.md` §4 defines exactly these
+three and forbids adding one, and it also settles what to do with an
+observation that needs no correction: a finding with no remedy is not a
+finding. Record such observations in the review artifact's own narrative — the
+relevant review area, or Limitations — never as a severity and never in
+`non_blocking_findings`, which carries `Minor` findings only.
 
 ---
 
@@ -946,264 +959,19 @@ state. Do not create a commit or Pull Request.
 
 ---
 
-# Security Review Report Format
-
-## Front Matter
-
-Shared block from `docs/workflow/artifact-schema.md`
-(`artifact_type: security_review`), plus: `critical_findings`,
-`major_findings`, `minor_findings`, `informational_findings`,
-`security_sensitive` (bool), `runtime_checks` (`FULL` / `PARTIAL` / `NONE`),
-`analysis_mode` (`TYPE_CHECKED` / `TEXT_ONLY`).
-`created_at` / `updated_at` are runtime timestamps.
-
-Illustrative (dates are examples only):
-
-    ---
-    artifact_type: security_review
-    story: US-001
-    version: 1
-    status: DRAFT
-    created_at: <runtime>
-    updated_at: <runtime>
-    produced_by: security-reviewer
-    inputs:
-      - path: docs/evidence/US-001-implementation-report.md
-        version: 1
-      - path: docs/verification/US-001-implementation-verification.md
-        version: 1
-      - path: docs/specifications/US-001-spec.md
-        version: 1
-    supersedes: null
-    critical_findings: 1
-    major_findings: 2
-    minor_findings: 1
-    informational_findings: 0
-    security_sensitive: true
-    runtime_checks: PARTIAL
-    analysis_mode: TYPE_CHECKED
-    ---
-
-## 1. Executive Summary
-
-Summarize:
-
-- overall security result;
-- principal security controls;
-- Critical and Major risks;
-- review limitations;
-- recommended next action.
-
-## 2. Reviewed Artifacts
-
-List exact artifact paths and versions.
-
-## 3. Security-Relevant Scope
-
-Describe:
-
-- exposed functionality;
-- protected assets;
-- trust boundaries;
-- affected security components.
-
-## 4. Environment and Tools
-
-Record:
-
-- Node version;
-- Express, Prisma, and Zod versions in use;
-- `NODE_ENV` and the configuration actually loaded;
-- database target used for evidence;
-- review commands run;
-- checks that could not be executed;
-- runtime capabilities;
-- unavailable checks.
-
-Do not record secrets.
-
-## 5. Authentication Review
-
-Record:
-
-- applicable requirements;
-- implementation evidence;
-- tests;
-- findings.
-
-## 6. Authorization Review
-
-Record:
-
-- endpoint access;
-- role checks;
-- ownership checks;
-- service-level boundaries;
-- findings.
-
-## 7. Password and Credential Handling
-
-Record:
-
-- request handling;
-- policy enforcement;
-- hashing;
-- persistence;
-- serialization;
-- logging;
-- tests;
-- findings.
-
-## 8. Sensitive Data Exposure
-
-Record review results for:
-
-- responses;
-- entities;
-- DTOs;
-- logs;
-- exceptions;
-- reports;
-- telemetry.
-
-## 9. Input Validation
-
-Record:
-
-- constraints;
-- runtime activation;
-- negative scenarios;
-- oversized or malformed input;
-- findings.
-
-## 10. API Security
-
-Record:
-
-- exposed endpoints;
-- approved public access;
-- protected operations;
-- request and response restrictions;
-- error behavior;
-- findings.
-
-## 11. Persistence Security
-
-Record:
-
-- sensitive fields;
-- schema constraints;
-- uniqueness;
-- nullability;
-- database location;
-- generated files;
-- findings.
-
-## 12. Runtime Configuration
-
-Record:
-
-- startup environment validation;
-- CORS, helmet, body limit, `trust proxy`, rate limits;
-- cookie flags;
-- secret handling;
-- unsafe defaults;
-- findings.
-
-## 13. Logging and Telemetry
-
-Record:
-
-- sensitive logging review;
-- hook telemetry review;
-- payload retention;
-- redaction controls;
-- findings.
-
-## 14. Dependencies
-
-Record:
-
-- added dependencies;
-- approval status;
-- review limitations;
-- vulnerability scanning evidence when available;
-- findings.
-
-Do not state that dependencies are secure when vulnerability scanning was not
-performed.
-
-## 15. Security Test Coverage
-
-Map security requirements and abuse cases to tests.
-
-## 16. Abuse Case Review
-
-For every reviewed abuse case record:
-
-- scenario;
-- expected protection;
-- evidence;
-- status;
-- finding.
-
-## 17. Repository Hygiene
-
-Record:
-
-- secret-like files;
-- runtime artifacts in the change set;
-- ignored files;
-- unsafe local configuration;
-- findings.
-
-## 18. Deviations
-
-List deviations between approved security requirements and actual
-implementation.
-
-## 19. Findings
-
-For each finding provide:
-
-- ID;
-- severity;
-- category;
-- affected file or artifact;
-- observed evidence;
-- expected security behavior;
-- risk;
-- required correction;
-- loop-back target;
-- verification required after correction.
-
-Do not include actual secret values.
-
-## 20. Positive Controls
-
-List security controls that were independently observed and verified.
-
-## 21. Open Decisions
-
-List unresolved security decisions.
-
-If none exist, state:
-
-    No blocking security Open Decisions were identified.
-
-## 22. Review Limitations
-
-List checks that were not performed and explain why.
-
-## 23. Verdict Rationale
-
-Explain the verdict (see Result Envelope). Do not use `PROCEED_TO_*` /
-`RETURN_TO_*` labels — they are retired. When a human security decision is
-needed (risk acceptance, exception, suspected credential compromise), return
-`verdict: BLOCKED` and say so explicitly in `blocking_issues`.
+# Output
+
+- `security_review` at
+  `docs/reviews/security/{story_id}-security-review.md`,
+  front matter per `docs/workflow/artifact-schema.md`,
+  `artifact_type: security_review`.
+
+Use `references/security-review-template.md` — it carries the exact section
+order, the front-matter block, and what each section must contain. **The
+template is the list; this file keeps no second copy of it**, because a copy
+drifts and a reader cannot tell which one is current. Open it before writing.
 
 ---
-
 # Validation Checklist
 
 Before returning the result envelope, confirm each of these:
@@ -1241,8 +1009,8 @@ result:
 
 Use only when: `implementation_verification` verdict is `PASS`; no Critical or
 Major findings; required security tests pass; security-sensitive Acceptance
-Criteria are verified; no blocking security Open Decision. Minor / Informational
-findings go in `non_blocking_findings`. The orchestrator advances to
+Criteria are verified; no blocking security Open Decision. `Minor` findings go
+in `non_blocking_findings`. The orchestrator advances to
 `RECONCILIATION`.
 
 ## CHANGES_REQUIRED

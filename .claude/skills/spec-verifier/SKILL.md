@@ -1,6 +1,10 @@
 ---
 name: spec-verifier
-description: Reviews a Specification for completeness, consistency, traceability, and implementation readiness. Owns the SPEC_REVIEW stage.
+description: >
+  Reviews a Specification for completeness, consistency, traceability, and
+  implementation readiness, and records findings without editing it: the
+  revision itself belongs to spec-writer. Owns the SPEC_REVIEW stage. A PASS
+  here is a review verdict, never the human approval that follows it.
 ---
 
 # Purpose
