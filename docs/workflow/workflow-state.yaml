@@ -1,0 +1,22 @@
+# Execution state of the active story-delivery workflow.
+# Schema: docs/workflow/state-schema.md
+# Writer: story-orchestrator ONLY. Stage Skills never write this file.
+version: 1
+story: US-001
+workflow: story-delivery
+current_stage: CLARIFICATION
+previous_stage: BACKLOG_SYNC
+last_completed_stage: BACKLOG_SYNC
+status: IN_PROGRESS
+attempt: 1
+last_invoked_skill: null
+last_result: null
+last_artifacts: []
+pending_human_gate: null
+blocking_issues: []
+non_blocking_findings:
+  - "A pre-registry specification and spec review for US-001 exist at docs/specifications/US-001-spec.md and docs/reviews/specifications/US-001-spec-review.md. They were produced before CLARIFICATION ran; the SPECIFICATION stage must revise the spec against the clarification artifacts rather than treat it as current."
+started_at: 2026-08-31T00:00:00Z
+updated_at: 2026-08-31T00:00:00Z
+completed_at: null
+archived_at: null
