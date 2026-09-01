@@ -1,0 +1,14 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Customer Portal API",
+    "version": "0.1.0",
+    "description": "Generated from the Zod schemas in src/modules/*/*.schemas.ts. Do not edit by hand (docs/architecture/api-conventions.md AC-10)."
+  },
+  "components": {
+    "schemas": {},
+    "parameters": {}
+  },
+  "paths": {},
+  "webhooks": {}
+}
