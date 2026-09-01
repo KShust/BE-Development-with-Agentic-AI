@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run format)",
+      "Bash(npm run format:check)",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run test)",
+      "Bash(npm run test:unit)",
+      "Bash(npm run test:integration)",
+      "Bash(npm run build)",
+      "Bash(npm run check:cycles)",
+      "Bash(npm run openapi:check)",
+      "Bash(npm run openapi:generate)",
+      "Bash(npm run audit:check)",
+      "Bash(npm run validate:harness)",
+      "Bash(npm run validate:harness:test)",
+      "Bash(npm run prisma:generate)",
+      "Bash(npx prisma migrate status)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git branch --list:*)",
+      "Bash(git branch --show-current)",
+      "Bash(git rev-parse:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git merge-base:*)"
+    ],
+    "ask": [
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git merge:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm run prisma:migrate)",
+      "Bash(docker:*)",
+      "Bash(git branch -d:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git branch -f:*)",
+      "Bash(git branch -m:*)",
+      "Bash(git branch -M:*)",
+      "Bash(git checkout --orphan:*)",
+      "Bash(git rm:*)",
+      "Bash(git reset:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git restore:*)",
+      "Bash(git rebase:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git commit --amend:*)",
+      "Bash(git reflog delete:*)",
+      "Bash(git update-ref -d:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr close:*)",
+      "Bash(gh repo delete:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(prisma db push:*)",
+      "Bash(npm run prisma:deploy)",
+      "Bash(npm publish:*)",
+      "Bash(rm -rf:*)",
+      "Read(./.env)",
+      "Write(./.env)",
+      "Edit(./.env)",
+      "Write(./prisma/migrations/**)",
+      "Edit(./prisma/migrations/**)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-quick.py\"",
+            "timeout": 180
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/validate-full.py\"",
+            "timeout": 900
+          }
+        ]
+      }
+    ]
+  }
+}
