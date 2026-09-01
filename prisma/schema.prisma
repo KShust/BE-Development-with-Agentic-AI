@@ -1,0 +1,2 @@
+// Prisma schema placeholder.
+// datasource + generator + models (User, ...) to be added when the auth/users modules are implemented.
