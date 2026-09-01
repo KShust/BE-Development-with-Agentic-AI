@@ -1,0 +1,20 @@
+{
+  "$comment": [
+    "Accepted npm audit advisories. Every entry is a dated, reasoned decision;",
+    "scripts/audit-check.py fails on any high/critical advisory that is not",
+    "listed here, and also fails when a listed advisory no longer appears -- a",
+    "dead exception is removed, not left to rot.",
+    "Adding an entry is a security decision: record why the risk is acceptable,",
+    "not merely that a fix is unavailable."
+  ],
+  "accepted": [
+    {
+      "id": "GHSA-ggr8-5vv4-36mx",
+      "package": "deepmerge-ts",
+      "severity": "high",
+      "reviewed": "2026-08-31",
+      "reason": "Stack exhaustion when merging recursive object graphs. Reached only through @prisma/client -> prisma -> @prisma/config, whose sole merge input is our own committed Prisma configuration; no attacker-controlled path exists. No fixed release on Prisma 7.10 -- npm's suggested fix is a downgrade to Prisma 6, a breaking stack change. See docs/knowledge/project-state.md.",
+      "recheck": "When Prisma publishes a release that bumps deepmerge-ts to >=8."
+    }
+  ]
+}

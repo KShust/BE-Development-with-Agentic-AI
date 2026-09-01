@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+prisma/migrations/
+
+# Hand-wrapped prose and workflow artifacts: prettier would reflow them.
+docs/
+.claude/
+*.md

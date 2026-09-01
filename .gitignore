@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+.DS_Store
+
+# Agent-local runtime output
+.claude/logs/
+.claude/skill-workspaces/
+# Machine-local hook/permission overrides. The shared config is .claude/settings.json.
+.claude/settings.local.json
+
+# Build/tooling caches
+*.tsbuildinfo
+__pycache__/
+*.pyc
+.env.*
+!.env.example

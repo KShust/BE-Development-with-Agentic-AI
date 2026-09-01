@@ -1,0 +1,10 @@
+# One line ending everywhere. Without this, core.autocrlf on Windows checks the
+# tree out with CRLF, and `npm run format:check` then fails on every file while
+# CI on Linux stays green.
+* text=auto eol=lf
+
+# Binary: never touch.
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary
