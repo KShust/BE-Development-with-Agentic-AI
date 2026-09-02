@@ -4,19 +4,36 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: CLARIFICATION
-previous_stage: BACKLOG_SYNC
-last_completed_stage: BACKLOG_SYNC
+current_stage: API_DESIGN
+previous_stage: HUMAN_SPEC_APPROVAL
+last_completed_stage: HUMAN_SPEC_APPROVAL
 status: IN_PROGRESS
 attempt: 1
-last_invoked_skill: null
-last_result: null
-last_artifacts: []
+last_invoked_skill: spec-verifier
+last_result:
+  verdict: PASS
+  stage: SPEC_REVIEW
+  recorded_at: 2026-09-02T13:18:32Z
+last_artifacts:
+  - type: specification
+    path: docs/specifications/US-001-spec.md
+    version: 14
+  - type: specification_review
+    path: docs/reviews/specifications/US-001-spec-review.md
+    version: 11
 pending_human_gate: null
 blocking_issues: []
 non_blocking_findings:
-  - "A pre-registry specification and spec review for US-001 exist at docs/specifications/US-001-spec.md and docs/reviews/specifications/US-001-spec-review.md. They were produced before CLARIFICATION ran; the SPECIFICATION stage must revise the spec against the clarification artifacts rather than treat it as current."
+  - "HUMAN_SPEC_APPROVAL was approved on 2026-09-02 by human:KShust against specification v14 and review v11 (automated verdict PASS, 0 Critical, 0 Major, 4 Minor). The approval comment is recorded in full in docs/workflow/history.jsonl."
+  - "FR-18 is decided, not tacit: the four JWT variables (JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_TTL, JWT_REFRESH_TTL) are removed from .env.example. Nothing this Story ships reads them, and SC-3 keeps them out of src/config/env.ts until the Story that validates each. US-002 re-adds them together with the code that reads them. The item was carried to two consecutive gates; the second gate answered it."
+  - "Review v11's four Minors are accepted as design inputs for API_DESIGN and IMPLEMENTATION_PLANNING, not as blockers. m-1 carries real downstream weight: the specification requires express.json()'s errors to be translated into PayloadTooLargeError and ValidationError but names no owner for that translation, while the 415's owner is named - API_DESIGN and the plan should settle which component performs it."
+  - "Review v11's remaining three Minors, for the record: m-2 the revision-14 preamble note miscounts its own changes (names FR-21, which carried no decision id; omits BR-2, which did; wrong counts for edge cases and component rows); m-3 FR-5 closes with an obligation on US-003 that nothing in this Story can satisfy or test; m-4 FR-5 names the id field without stating its representation while citing AC-11 only for createdAt."
+  - "Review independence is weaker at this gate than at the previous one, and the review artifact says so itself: specification v14 and review v11 were produced in the same session turn by the same model under different Skills. The PASS should not be read as an independent second opinion. Recorded at approval; it does not reopen the gate."
+  - "history.jsonl gap, recorded not repaired: no SPEC_REVIEW -> SPECIFICATION CHANGES_REQUIRED event was ever appended for review v8, so SPECIFICATION's derived run count stays one lower than its real number of runs, and its attempt series carries a deliberate one-step jump at the rejection transition. history.jsonl is append-only, so the missing event was not invented."
+  - "Timestamp defect, recorded not repaired: the history events written at SPECIFICATION attempts 3 and 4 carry 2026-09-02T09:12:00Z and 10:05:00Z, both ahead of the real clock, because those runs hardcoded a string instead of reading the system clock as artifact-schema.md requires. Whether to correct them is a human decision."
+  - "Harness gap now due, named by the clarification report and deferred until US-001 cleared this gate: stage-map.yaml routes no loop_back to CLARIFICATION from a stage that discovers the need, while us-clarifier is the registry's only permitted writer - so registry revisions 3, 4, 5 and 7 were all written outside a stage run. The workflow has no path back into the file it defines as authoritative."
+  - "spec-verifier SKILL.md contradicts itself: its result-envelope example shows artifact_status: APPROVED while its own report template writes status: DRAFT. Correcting the Skill file is a harness change and out of scope for US-001."
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-08-31T00:00:00Z
+updated_at: 2026-09-02T13:30:05Z
 completed_at: null
 archived_at: null

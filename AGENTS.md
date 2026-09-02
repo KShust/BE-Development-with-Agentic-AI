@@ -392,8 +392,6 @@ depends on one, and ask rather than assume. Story-level decisions live in
 - User roles beyond `CUSTOMER`.
 - Non-functional requirements: expected scale, uptime/SLA targets.
 - Compliance scope: whether GDPR or another regime applies.
-- Environment topology: how many environments, and how `trust proxy` and the
-  CORS allow-list differ per environment.
 
 ---
 

@@ -49,6 +49,21 @@ Explicit decisions for the HTTP API in this project. `openapi-designer` and
 Every endpoint declares its success status explicitly; nothing defaults to `200`
 by accident.
 
+**Registration — decided.** `POST /api/v1/auth/register` matches two rows above:
+it is a session action under `/auth/` by path and a resource creation by effect.
+Resolved by a human on 2026-09-01: it returns **`201 Created` with the created
+resource body and no `Location` header**.
+
+The status is `201` because the call creates a durable account, which is what a
+client needs to distinguish from an accepted-but-inert `200`. The `Location`
+header is omitted because the only canonical URL for the created account is
+`/api/v1/users/me` (AC-3), and no Story serves that endpoint until US-003 — a
+header pointing at a `404` is worse than no header. A later Story may add it once
+the target exists; adding a header is not a breaking change.
+
+This is the single exception to the `POST /auth/<action>` row. `login`,
+`refresh`, and `logout` create no resource and keep `200`/`204`.
+
 ## AC-5 Error status codes
 
 | Status | When |

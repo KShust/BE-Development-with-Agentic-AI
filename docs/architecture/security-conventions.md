@@ -230,7 +230,49 @@ database_schema:
   Blanket `trust proxy: true` is forbidden — it lets a client spoof the client
   IP that rate limiting depends on.
 - An explicit JSON body size limit is configured; unlimited payloads are not
-  accepted.
+  accepted. **The value is `10kb`** — decided by a human on 2026-09-02. The
+  largest body any current endpoint accepts is a registration of two short
+  fields, and a tight limit is the cheapest reduction of denial-of-service
+  surface on an unauthenticated route. It is a deliberate value, not the
+  library default: raising it later for an endpoint that needs more is a
+  commit and a review, and is easier than lowering one clients already rely on.
+
+### Environment topology — decided
+
+Resolved by a human on 2026-09-01. This closes the environment-topology Open
+Decision that `AGENTS.md` carried; the values below are the whole answer, and no
+Story may infer a different one.
+
+| Environment | `TRUST_PROXY` | `CORS_ALLOWED_ORIGINS` |
+|---|---|---|
+| Local development | `0` | local origin only (`.env.example` carries the placeholder) |
+| Automated tests / CI | `0` | same as local; requests reach the process directly |
+| Production | `1` | see below — no real origin exists yet |
+
+**Two environments exist: local and production.** There is no staging. A Story
+that needs one raises a new decision rather than assuming it is there.
+
+**Production runs behind exactly one reverse proxy** — a single hop, whether that
+is nginx/Caddy on the same host or one cloud load balancer. So `TRUST_PROXY=1`:
+Express trusts one entry of `X-Forwarded-For` and takes the client IP from the
+last hop it did not add itself.
+
+Why the number and not `true`: the register limit is per IP (SC-3). With
+`trust proxy: true` Express believes the leftmost `X-Forwarded-For` entry, which
+the client writes, so any caller invents a fresh IP per request and the limit
+stops existing. With an explicit hop count the proxy's own appended value wins.
+The count is therefore a security control, not deployment trivia — **adding a CDN
+or a second proxy in front changes it to `2`, and forgetting to change it
+silently disables per-IP rate limiting.** Whoever changes the topology changes
+this value in the same commit.
+
+**CORS: no production origin is decided, because no browser client exists yet.**
+`CORS_ALLOWED_ORIGINS` holds the local origin only. The Story that first connects
+a client adds the real origins — as an explicit list, never a wildcard, and never
+a wildcard together with `credentials: true`.
+
+`TRUST_PROXY` and `CORS_ALLOWED_ORIGINS` are environment variables read only in
+`src/config/env.ts` (`architecture.md` AD-7) and validated at startup.
 - Production traffic is HTTPS only; the refresh cookie's `Secure` flag depends
   on it.
 
@@ -291,3 +333,21 @@ or a log line:
   password change, token rotation and revocation) are logged for audit,
   distinct from general request logging. Audit-log retention and storage
   location are an Open Decision.
+- **What an audit event carries — decided** by a human on 2026-09-02: a
+  stable `event` name, the acting `userId`, and the `requestId`. **No
+  personal data**: not the email address, not the client IP. The `event`
+  field is what makes the line distinct from general request logging, and
+  the email stays recoverable from the database through `userId` when an
+  investigation needs it.
+  This is the choice that does not depend on the compliance scope, which
+  `docs/product/non-functional-requirements.md` NFR-011 leaves undecided:
+  a log line holding personal data outlives the request under a retention
+  policy nobody has set yet. A Story that needs more in an audit line raises
+  its own decision rather than widening this one in passing.
+- **Audit events are best-effort and never transactional — decided** by a
+  human on 2026-09-02. The event is emitted after the database transaction
+  commits. A failed audit write is itself logged as an error and does not
+  fail the request: a customer does not lose a completed operation because a
+  log sink was unavailable. The consequence is accepted explicitly — an
+  operation can succeed with no audit line — and it is the reason audit
+  storage is an Open Decision rather than a solved one.
