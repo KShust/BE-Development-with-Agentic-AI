@@ -244,15 +244,42 @@ After a valid result, update `workflow-state.yaml` (per `state-schema.md`):
 - `last_invoked_skill`, `last_result` (verdict/stage/recorded_at),
   `last_artifacts` ([{type, path, version}]);
 - `pending_human_gate` per the Human Gates section;
-- `blocking_issues`, `non_blocking_findings`;
+- `blocking_issues`;
+- `non_blocking_findings` := **recomputed, not appended to** — replay
+  `history.jsonl` for this Story and keep every id whose latest event says
+  `RAISED`, in the structured shape `state-schema.md` defines. A finding the
+  Skill just closed leaves this list in the same write that records the closure;
+  never carry the previous list forward untouched;
 - `started_at` (first automated stage), `updated_at` (always),
   `completed_at` / `archived_at` when reaching those stages.
 
 Then append one line to `docs/workflow/history.jsonl`:
 
 ```json
-{"timestamp":"<runtime>","story":"US-001","from_stage":"<old>","to_stage":"<new>","skill":"<skill-or-null>","verdict":"<verdict>","artifacts":[],"attempt":<n>}
+{"timestamp":"<runtime>","story":"US-001","from_stage":"<old>","to_stage":"<new>","skill":"<skill-or-null>","verdict":"<verdict>","artifacts":[],"attempt":<n>,"findings":[]}
 ```
+
+`findings` carries the entries the Skill reported, validated before the append
+(`state-schema.md`, Finding lifecycle): an `id` shaped `<STAGE>:<local-id>`, a
+severity, a status, and a specific one-line summary. Reject an entry that is
+prose without an id, that closes an id never raised, or that raises an id
+already raised — and say which, rather than dropping it silently. The append is
+the record; the derived set above is only a view of it.
+
+## Migrating the free-text findings
+
+`non_blocking_findings` was free text before this schema and only ever grew.
+On the first transition after a Story's state still holds unstructured entries,
+convert them once: give each `id: LEGACY:<n>` numbered in the order they appear,
+`severity: MINOR`, `status: RAISED`, and the original prose as `summary`; record
+them in that transition's `findings`; then write the derived set in the new
+shape.
+
+The conversion is mechanical and deliberately so — **it does not decide whether
+any of them is still open.** Many are provably closed already, and reading a
+prose entry to judge that is a human call, not a migration. So the entries land
+as `RAISED`, and triaging them is a separate pass. Say in the run summary that
+`LEGACY:*` ids are unreviewed, so the count is not mistaken for a real open set.
 
 Preserve all prior history. Never rewrite `history.jsonl`.
 

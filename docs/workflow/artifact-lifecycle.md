@@ -132,7 +132,11 @@ result:
                                       # that names loop_back_stage; required
                                       # whenever loop_back_stage is set
   blocking_issues: []                 # non-empty only for BLOCKED
-  non_blocking_findings: []
+  non_blocking_findings:              # findings this run raised or closed;
+    - id: DESIGN_REVIEW:d-1           # shape and rules in state-schema.md
+      severity: MAJOR                 # (Finding lifecycle)
+      status: RAISED
+      summary: the declared 429 has no component able to produce its AC-6 body
 ```
 
 Field rules:
@@ -146,7 +150,7 @@ Field rules:
 | `artifacts` | Plain relative paths. Empty only for `BLOCKED` or `NOT_APPLICABLE`. |
 | `loop_back_stage` / `loop_back_key` | Both `null` unless `verdict: CHANGES_REQUIRED`; then both are set, and the key MUST exist under `stages.<current>.loop_back` in `stage-map.yaml`. A key the map does not define is rejected by the orchestrator. |
 | `blocking_issues` | Strings naming the offending artifact or stage. Non-empty exactly when `verdict: BLOCKED`. |
-| `non_blocking_findings` | Advisory findings that do not block; carried forward into `workflow-state.yaml`. |
+| `non_blocking_findings` | Structured entries, shape and status vocabulary in `state-schema.md` (Finding lifecycle). Report **both directions**: findings this run raised, and findings from earlier runs it closed — a run that fixes a predecessor's finding and says nothing leaves it open forever. Report only what changed; a finding this run neither raised nor closed is already carried by the derived set and is not repeated here. Prose without an `id` is not a finding and the orchestrator rejects it. |
 
 Only `story-orchestrator` acts on this value: it validates the envelope, then
 records the transition (`workflow-state.yaml` + one `history.jsonl` event).
