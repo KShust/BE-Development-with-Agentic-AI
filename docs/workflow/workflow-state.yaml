@@ -4,19 +4,19 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: IMPACT_ANALYSIS
-previous_stage: DESIGN_REVIEW
-last_completed_stage: DESIGN_REVIEW
+current_stage: IMPLEMENTATION_PLANNING
+previous_stage: IMPACT_ANALYSIS
+last_completed_stage: IMPACT_ANALYSIS
 status: IN_PROGRESS
 attempt: 1
-last_invoked_skill: design-reviewer
+last_invoked_skill: impact-analyzer
 last_result:
   verdict: PASS
-  stage: DESIGN_REVIEW
-  recorded_at: 2026-09-02T21:06:10Z
+  stage: IMPACT_ANALYSIS
+  recorded_at: 2026-09-02T21:55:20Z
 last_artifacts:
-  - type: design_review
-    path: docs/reviews/designs/US-001-design-review.md
+  - type: impact_analysis
+    path: docs/impact-analysis/US-001-impact-analysis.md
     version: 2
 pending_human_gate: null
 blocking_issues: []
@@ -67,8 +67,14 @@ non_blocking_findings:
   - "Recorded by DESIGN_REVIEW v2, not a finding: db_design bumped to version 2 while still recording version 1 for its API inputs alongside assessed_version 2. That is the encoding artifact-schema.md asks for - version records where the content came from, assessed_version what was examined and stood behind - and the content did come from the v1-era run, with only the adapter paragraph new. Noted because it reads oddly at a glance for an artifact that did re-run and bump."
   - "Carried forward by DESIGN_REVIEW v2 and still due at IMPLEMENTATION_PLANNING: the X-Request-Id ordering obligation is now sharper, not softer. The header is declared required: true on every response including the 429, and with d-1 resolved through next(...) the 429 body is written by the centralized error middleware - so the request-id middleware must be mounted AHEAD of the rate limiter in src/app.ts or the limiter short-circuits before the id exists. FR-15 and FR-23 already place both in the app assembly, so nothing is undecided; order them deliberately rather than discover it from a failing test. The d-1 escalation to HUMAN_PLAN_APPROVAL is formally WITHDRAWN by the review that raised it: it was conditional on the AD-6 amendment still being needed, and fa21f62 made it."
   - "DESIGN_REVIEW v2 endorsed again, so it is not reopened downstream as a fresh idea: the deliberately unspecified CHECK (email = lower(btrim(email))). Prisma cannot express a CHECK while PC-2 makes schema.prisma the source of truth, so adding one means raw SQL in a migration the model does not describe and the next prisma migrate dev reconciles against a model unaware of it - a durable divergence traded for a defense against a writer that does not exist. The db-design's two companion findings are unchanged and still due at IMPLEMENTATION_PLANNING: the prisma.config.ts / AD-7 process.env question, and PC-1 predating Prisma 7."
+  - "IMPACT_ANALYSIS ran at attempt 1 and returned PASS with seven residual risks and no blocking issue. The change surface is identified: the auth module (routes, controller, service, schemas), the users module (service and repository only - it owns the User record per BR-6 and exposes no endpoint here), all four shared directories, the app assembly and process entry, the test tree, and six repository-level tooling and documentation files. No new module, shared directory or abstraction layer is required, and no new dependency is needed."
+  - "IMPACT_ANALYSIS DELIBERATELY DID NOT USE changes_required_specification, and design review e-1 had asked it to decide. The reasoning is recorded in full in the analysis §14 so a later reader can disagree with the judgement rather than reconstruct it: the loop-back would replay six stages INCLUDING A HUMAN GATE and supersede a v14 document that has already passed it, to correct two sentences that restate a convention whose canonical home is architecture.md AD-6. What makes the alternative safe is not hope - IMPLEMENTATION_PLANNING must state in the plan, in as many words, that AD-6's five-class list is authoritative and that Specification FR-21's count of four is stale, and a 429 contract test is the detection net if that statement is missed. The answer changes if IMPLEMENTATION_PLANNING cannot or does not carry it, or if a second substantive Specification defect appears - one revision would then close both."
+  - "The four Major risks from IMPACT_ANALYSIS, all mitigable inside IMPLEMENTATION_PLANNING and none needing a human decision: R-1 the four-versus-five domain-error class list (above); R-2 a root-level prisma.config.ts breaks npm run lint unless tsconfig.typecheck.json's include gains it, because eslint.config.js:82 points type-aware linting at exactly that program; R-3 .env.test is git-ignored by .gitignore:28 (the .env.* pattern), so the PC-1 test setup as specified cannot be committed and the plan must choose and record a resolution; R-4 two Zod issue shapes leave details.fieldErrors empty, so the unrecognized-keys issue must be mapped onto the offending property name and the root-level invalid_type issue onto both required field keys, with minProperties: 1 reaching the generated document via .openapi() metadata. Three of the four (R-1, R-2, R-3) are invisible to every automated check until late, which is why each is stated with its trigger, consequence and remedy."
+  - "The three Minor risks from IMPACT_ANALYSIS: R-5 the request-id middleware must be mounted ahead of the rate limiter in src/app.ts; R-6 the limiter emits RateLimit-* and Retry-After headers the contract does not declare, so standardHeaders/legacyHeaders should be settled in the same configuration object as the custom handler; R-7 the scope is unusually broad for one Story and reviewers should see it was authorized - confirmed by a human on 2026-09-01, recorded in FR-19 and §5 of the clarification report."
+  - "PROVENANCE, and it is why the impact analysis is at version 2 after one recorded run: revision 1 was written at 2026-09-02T21:34:24Z outside any recorded stage run - history.jsonl held no IMPACT_ANALYSIS event and validate-harness.py reported the file as prior work that must be revised rather than read as current output. The orchestrator did NOT adopt its §18 verdict, because doing so would have recorded a result no Skill returned. impact-analyzer was invoked, re-verified every load-bearing repository claim against the working tree, and revised the file in place under the stage-map Re-entry rule. Nothing substantive changed - all seventeen src/ files are still one-line placeholders except src/lib/openapi.ts, schema.prisma is still two comment lines, .env.test still resolves to .gitignore:28, docs/api/openapi.json still has empty paths, @prisma/adapter-pg 7.10.0 and pg 8.23.0 are still installed, commits 0339b4a and fa21f62 still exist, AD-6 still names five subclasses at lines 171-173, all twelve decision entries still read RESOLVED, and npm run typecheck still exits 0. Revision 2 records that re-verification in §17 so the audit trail does not rest on an unrecorded session."
+  - "HISTORY DEFECT, recorded not repaired because history.jsonl is append-only: the DESIGN_REVIEW -> IMPACT_ANALYSIS event at 2026-09-02T21:06:10Z carries attempt: 2, but state-schema.md is explicit that a history event's attempt is the run count of that event's TO_STAGE counting the event itself, and that event was IMPACT_ANALYSIS's first entry - so the correct value was 1. The 2 is DESIGN_REVIEW's own run count, the from_stage reading. The two interpretations coincide for every other event in this Story's log, which is why it went unnoticed; validate-harness.py does not check the attempt series. workflow-state.yaml's attempt was and is correct under the derivation rule. This transition's event uses the to_stage rule: IMPLEMENTATION_PLANNING has never been entered, so attempt is 1."
 
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-02T21:06:10Z
+updated_at: 2026-09-02T21:55:20Z
 completed_at: null
 archived_at: null
