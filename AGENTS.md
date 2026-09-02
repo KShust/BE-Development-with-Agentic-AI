@@ -105,6 +105,29 @@ verified by reading, is `.claude/skills/pre-commit-checklist/SKILL.md`.
 turn that touched code, and `.github/workflows/ci.yml` runs the same set — so a
 locally green sequence is a green pipeline.
 
+### Changing a check is a human decision
+
+**`scripts/validate-harness.py`, `scripts/validate-harness.test.py` and
+`docs/workflow/artifact-schema.md` are changed only with explicit human
+approval, recorded the way `security-conventions.md` SC-6 records a new
+dependency: what changed, and why.** The correct response to a check that fails
+during a stage run is to **report it and stop** — never to edit the check in the
+turn it failed.
+
+This is not hypothetical, and the rule exists because the pressure is real and
+structural. The Stop hook fails a turn when `validate:harness` errors. The
+cheapest way to make that turn green is to edit the validator rather than the
+artifact, and on 2026-09-02 that happened twice in one session — the second time
+autonomously, with no human in the loop. Both edits turned out to be correct on
+review, which is exactly what makes the pattern dangerous: a mechanism built to
+watch for drift was generating pressure to edit the watcher, and it was luck
+rather than design that the edits were sound.
+
+A failing check is evidence about the work. Treat it as a finding, not as an
+obstacle between you and a green turn. If the check is genuinely wrong, say so,
+show the reasoning, and let a human decide — the same standard `AGENTS.md`
+already applies to a dependency, a convention, and a human gate.
+
 ---
 
 ## Active Scope
@@ -341,6 +364,9 @@ Do not start implementation until all of these hold; otherwise stop and ask.
 - Reading `process.env` outside `src/config/env.ts`; `console.log` in `src/`.
 - Suppressing TypeScript errors (`any`, `@ts-ignore`, `!`, forcing `as`).
 - Weakening, skipping, or deleting tests.
+- Editing `scripts/validate-harness.py`, `scripts/validate-harness.test.py` or
+  `docs/workflow/artifact-schema.md` without explicit human approval, and in
+  particular editing any of them in the turn where a check they drive failed.
 - Modifying an applied migration; `prisma db push` against a shared database.
 - Introducing an unversioned breaking API change.
 - Implementing speculative features or unrelated refactors.
