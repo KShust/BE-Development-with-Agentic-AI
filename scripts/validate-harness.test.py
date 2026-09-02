@@ -18,6 +18,7 @@ Exit: 0 = every case was detected, 1 = at least one slipped through.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -80,6 +81,65 @@ def edit(work: Path, rel: str, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
 
 
+def current_stage(work: Path) -> str:
+    """The `current_stage` the scratch tree's workflow state actually holds.
+
+    Cases that need to move the workflow to a different stage must not hard-code
+    the stage it is at today: the value is live state, it changes as the active
+    Story advances, and an anchor on one stage id turns a correct tree into a
+    failing test run. Read it instead.
+    """
+    text = (work / "docs" / "workflow" / "workflow-state.yaml").read_text(encoding="utf-8")
+    found = re.search(r"^current_stage:\s*(\S+)\s*$", text, re.M)
+    if not found:
+        raise AssertionError("workflow-state.yaml has no parsable current_stage")
+    return found.group(1)
+
+
+SPEC = "docs/specifications/US-001-spec.md"
+REVIEW = "docs/reviews/specifications/US-001-spec-review.md"
+
+
+def front_matter(work: Path, rel: str, key: str) -> str:
+    """A top-level front-matter scalar, as the scratch tree currently holds it.
+
+    Anchored at column 0, so `version:` finds the artifact's own version and not
+    one of the indented `inputs[]` entries.
+    """
+    text = (work / rel).read_text(encoding="utf-8")
+    found = re.search(rf"^{key}:\s*(\S+)\s*$", text, re.M)
+    if not found:
+        raise AssertionError(f"{rel}: no parsable {key} in front matter")
+    return found.group(1)
+
+
+def bump_version(work: Path, rel: str, by: int = 1) -> int:
+    """Advance an artifact's own `version`, returning the new value."""
+    was = int(front_matter(work, rel, "version"))
+    edit(work, rel, f"version: {was}\n", f"version: {was + by}\n")
+    return was + by
+
+
+def recorded_input(work: Path, rel: str, upstream: str) -> int:
+    """The version `rel` records having consumed `upstream` at."""
+    text = (work / rel).read_text(encoding="utf-8")
+    found = re.search(
+        rf"^  - path: {re.escape(upstream)}\n    version: (\d+)\s*$", text, re.M
+    )
+    if not found:
+        raise AssertionError(f"{rel}: no versioned inputs[] entry for {upstream}")
+    return int(found.group(1))
+
+
+def rebut(work: Path, rel: str, upstream: str, assessed: int, reason: str | None) -> None:
+    """Add an assessed_version (and optionally its assessment) to an input entry."""
+    was = recorded_input(work, rel, upstream)
+    body = f"  - path: {upstream}\n    version: {was}\n    assessed_version: {assessed}\n"
+    if reason is not None:
+        body += f"    assessment: >\n      {reason}\n"
+    edit(work, rel, f"  - path: {upstream}\n    version: {was}\n", body)
+
+
 def event(timestamp: str, source: str, target: str, **overrides) -> dict:
     """One history event with the schema's required fields filled in."""
     body = {
@@ -136,7 +196,12 @@ def _(work):
 
 @case("current_stage is not a real stage", "is not in stage_order")
 def _(work):
-    edit(work, "docs/workflow/workflow-state.yaml", "current_stage: CLARIFICATION", "current_stage: DESIGN")
+    edit(
+        work,
+        "docs/workflow/workflow-state.yaml",
+        f"current_stage: {current_stage(work)}",
+        "current_stage: DESIGN",
+    )
 
 
 @case("stage consumes an unregistered artifact", "absent from artifact-paths.yaml")
@@ -184,7 +249,7 @@ def _(work):
     edit(
         work,
         "docs/workflow/workflow-state.yaml",
-        "current_stage: CLARIFICATION",
+        f"current_stage: {current_stage(work)}",
         "current_stage: HUMAN_SPEC_APPROVAL",
     )
 
@@ -205,12 +270,12 @@ def _(work):
 # --------------------------------------------------------------------------
 
 
-@case("artifact updated_at is ahead of the clock", "updated_at 2099-01-01T00:00:00Z is in the future")
+@case("artifact updated_at is ahead of the clock", "2099-01-01T00:00:00Z is in the future")
 def _(work):
     edit(
         work,
-        "docs/specifications/US-001-spec.md",
-        "updated_at: 2026-08-31T00:00:00Z",
+        SPEC,
+        f"updated_at: {front_matter(work, SPEC, 'updated_at')}",
         "updated_at: 2099-01-01T00:00:00Z",
     )
 
@@ -219,81 +284,45 @@ def _(work):
 def _(work):
     edit(
         work,
-        "docs/specifications/US-001-spec.md",
-        "updated_at: 2026-08-31T00:00:00Z",
+        SPEC,
+        f"updated_at: {front_matter(work, SPEC, 'updated_at')}",
         "updated_at: last Tuesday",
     )
 
 
 @case("downstream records a version the upstream has moved past", "stale input")
 def _(work):
-    # The review consumed the specification at version 1; the specification is
-    # now at version 2 and the review carries no assessment.
-    edit(
-        work,
-        "docs/specifications/US-001-spec.md",
-        "artifact_type: specification\nstory: US-001\nversion: 1",
-        "artifact_type: specification\nstory: US-001\nversion: 2",
-    )
+    # The review recorded the specification at the version it read. Advance the
+    # specification; the review carries no assessment, so it is stale.
+    bump_version(work, SPEC)
 
 
 @case("stale input rebutted with an assessment is accepted", "harness OK", warning=True)
 def _(work):
-    edit(
+    now_at = bump_version(work, SPEC)
+    rebut(
         work,
-        "docs/specifications/US-001-spec.md",
-        "artifact_type: specification\nstory: US-001\nversion: 1",
-        "artifact_type: specification\nstory: US-001\nversion: 2",
-    )
-    edit(
-        work,
-        "docs/reviews/specifications/US-001-spec-review.md",
-        "  - path: docs/specifications/US-001-spec.md\n    version: 1\n",
-        "  - path: docs/specifications/US-001-spec.md\n"
-        "    version: 1\n"
-        "    assessed_version: 2\n"
-        "    assessment: >\n"
-        "      v2 rewrote the status banner only. This review consumes the\n"
-        "      requirements and the traceability matrix, neither of which moved.\n",
+        REVIEW,
+        SPEC,
+        assessed=now_at,
+        reason=(
+            "The new revision rewrote the status banner only. This review "
+            "consumes the requirements and the traceability matrix, neither of "
+            "which moved."
+        ),
     )
 
 
 @case("rebuttal names a version the upstream has already left behind", "the rebuttal is void")
 def _(work):
-    edit(
-        work,
-        "docs/specifications/US-001-spec.md",
-        "artifact_type: specification\nstory: US-001\nversion: 1",
-        "artifact_type: specification\nstory: US-001\nversion: 3",
-    )
-    edit(
-        work,
-        "docs/reviews/specifications/US-001-spec-review.md",
-        "  - path: docs/specifications/US-001-spec.md\n    version: 1\n",
-        "  - path: docs/specifications/US-001-spec.md\n"
-        "    version: 1\n"
-        "    assessed_version: 2\n"
-        "    assessment: >\n"
-        "      v2 rewrote the status banner only.\n",
-    )
+    now_at = bump_version(work, SPEC, by=2)
+    rebut(work, REVIEW, SPEC, assessed=now_at - 1, reason="Banner only.")
 
 
 @case("rebuttal with no reason recorded", "with no assessment")
 def _(work):
-    edit(
-        work,
-        "docs/specifications/US-001-spec.md",
-        "artifact_type: specification\nstory: US-001\nversion: 1",
-        "artifact_type: specification\nstory: US-001\nversion: 2",
-    )
-    edit(
-        work,
-        "docs/reviews/specifications/US-001-spec-review.md",
-        "  - path: docs/specifications/US-001-spec.md\n    version: 1\n",
-        "  - path: docs/specifications/US-001-spec.md\n"
-        "    version: 1\n"
-        "    assessed_version: 2\n",
-    )
+    now_at = bump_version(work, SPEC)
+    rebut(work, REVIEW, SPEC, assessed=now_at, reason=None)
 
 
 # --------------------------------------------------------------------------
