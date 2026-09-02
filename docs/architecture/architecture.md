@@ -130,9 +130,18 @@ second copy is how the two come to disagree.
 - **Domain error taxonomy — decided** by a human on 2026-09-01. `src/lib/errors.ts`
   declares one abstract `DomainError` base and one subclass per failure
   *semantic*, not per feature: `ValidationError`, `UnauthorizedError`,
-  `ForbiddenError`, `NotFoundError`, `ConflictError`. A new subclass requires a
-  new failure semantic the table below does not already cover — not a new
-  message.
+  `ForbiddenError`, `NotFoundError`, `ConflictError`, `UnsupportedMediaTypeError`,
+  `PayloadTooLargeError`. A new subclass requires a new failure semantic the table
+  below does not already cover — not a new message.
+- **The last two were added on 2026-09-02**, by a human decision at US-001's
+  specification gate, because this section contradicted itself: the mapping below
+  named `415` while no subclass carried that semantic, and `413` appeared nowhere
+  at all. Both statuses are produced outside the two categories the error
+  middleware recognizes — the `415` by the boundary middleware's `Content-Type`
+  check, the `413` by `express.json()` — so without a class to carry them an
+  error middleware that maps only `ZodError` and `DomainError` returns a generic
+  `500` for each. Any Story with a request body meets this; it was not specific to
+  registration.
 - Every `DomainError` carries a stable `code` string, which is what reaches the
   client as `error.code` (`api-conventions.md` AC-6). The service supplies it at
   the throw site (`new ConflictError('EMAIL_ALREADY_REGISTERED')`), and its value
@@ -142,10 +151,18 @@ second copy is how the two come to disagree.
   middleware owns the class-to-status mapping below.
 - **`src/lib/errors.ts` does not exist yet.** The first Story that needs a domain
   error creates it with the base and the subclasses that Story actually throws;
-  the rest are added when first needed. Until then, do not import from it.
+  the rest are added when first needed. Until then, do not import from it. US-001
+  is that Story: it creates the base plus `ConflictError`,
+  `UnsupportedMediaTypeError`, `PayloadTooLargeError` and `ValidationError` — the
+  four it actually throws — and leaves `UnauthorizedError`, `ForbiddenError` and
+  `NotFoundError` to the Stories that first throw them.
 - The handler maps: Zod validation failure → `400`; domain "unauthenticated" →
   `401`; "forbidden" → `403`; "not found" → `404`; "conflict/duplicate" → `409`;
-  unsupported media type → `415`; anything unmapped → `500`.
+  unsupported media type → `415`; payload too large → `413`; anything unmapped →
+  `500`. Each of those semantics has a class in the taxonomy above, and the
+  malformed-JSON `400` that `express.json()` raises is wrapped in a
+  `ValidationError` at the boundary rather than reaching the handler as a library
+  error.
 - Express 5 forwards rejected promises from async handlers to this middleware
   automatically; do not wrap handlers in try/catch to build error responses.
 - Every error response body uses the structure in `api-conventions.md` (AC-6).
