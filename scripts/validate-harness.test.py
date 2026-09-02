@@ -191,6 +191,22 @@ def recorded_input(work: Path, rel: str, upstream: str) -> int:
     return int(found.group(1))
 
 
+def consumers_of(work: Path, upstream: str) -> list[str]:
+    """Every story artifact that records a versioned `inputs[]` entry for `upstream`.
+
+    Bumping an upstream makes *all* of its consumers stale at once, not just the
+    one a case has in mind. A case that rebuts a single consumer therefore leaves
+    the rest failing and stops testing what it names. This finds the full set, so
+    the rebuttal cases stay about the rebuttal.
+    """
+    found = []
+    for path in sorted((work / "docs").rglob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        if re.search(rf"^  - path: {re.escape(upstream)}\n    version: \d+", text, re.M):
+            found.append(path.relative_to(work).as_posix())
+    return found
+
+
 def rebut(work: Path, rel: str, upstream: str, assessed: int, reason: str | None) -> None:
     """Add an assessed_version (and optionally its assessment) to an input entry."""
     was = recorded_input(work, rel, upstream)
@@ -372,18 +388,36 @@ def _(work):
 
 @case("stale input rebutted with an assessment is accepted", "harness OK", warning=True)
 def _(work):
+    # Every consumer is rebutted, not only the spec review: one bump staleses
+    # them all, and a case that left four of them failing would assert the exit
+    # code of an unrelated defect.
     now_at = bump_version(work, SPEC)
-    rebut(
-        work,
-        REVIEW,
-        SPEC,
-        assessed=now_at,
-        reason=(
-            "The new revision rewrote the status banner only. This review "
-            "consumes the requirements and the traceability matrix, neither of "
-            "which moved."
-        ),
-    )
+    for rel in consumers_of(work, SPEC):
+        rebut(
+            work,
+            rel,
+            SPEC,
+            assessed=now_at,
+            reason=(
+                "The new revision rewrote the status banner only. This artifact "
+                "consumes the requirements and the traceability matrix, neither "
+                "of which moved."
+            ),
+        )
+
+
+@case(
+    "a design cites the review that revised it, and the review revises again",
+    "stale input on a backward edge",
+    warning=True,
+)
+def _(work):
+    # A loop-back makes a design consume the review that sent it back, so the
+    # edge runs backwards through stage_order. The design can only re-run via
+    # another loop-back, which needs a CHANGES_REQUIRED verdict - and that would
+    # have re-run the design anyway. Warn, so the condition stays visible
+    # without demanding a repair that a PASS makes unreachable.
+    bump_version(work, "docs/reviews/designs/US-001-design-review.md")
 
 
 @case("rebuttal names a version the upstream has already left behind", "the rebuttal is void")

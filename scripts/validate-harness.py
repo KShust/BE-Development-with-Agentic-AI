@@ -699,6 +699,30 @@ def check_input_versions(story, artifacts, stages, stage_order) -> None:
       should have re-run, and the stale artifact is now feeding later stages.
       That is the case the contract exists for, and it stays an error.
 
+    Both of those read the graph as forward-only, which every edge is until a
+    stage consumes a **review of itself**. A design revised through a loop-back
+    records the review it addressed, so `api_design` (owned by `API_DESIGN`)
+    cites `design_review` (owned by `DESIGN_REVIEW`, a later stage) - a
+    **backward edge**. When that review revises, the design goes stale and the
+    forward reading grades it an error, because `API_DESIGN` sits before
+    `current_stage`.
+
+    That grade has no reachable remedy. `API_DESIGN` re-runs only through a
+    loop-back - `stage-map.yaml` routes five of them to it - and every loop-back
+    needs a `CHANGES_REQUIRED`
+    verdict - which would have re-run the design anyway and cleared the edge as
+    a side effect. So the only staleness that survives on a backward edge is the
+    kind produced by a `PASS`, and a `PASS` is precisely the review saying there
+    is nothing here to consume. Failing on it would demand either a fabricated
+    review verdict or a rebuttal written by a Skill that does not own the file -
+    both prohibited - which is the "no available repair" shape the paragraph
+    above already rejects.
+
+    A backward edge is therefore a warning, and stays visible. The forward
+    grading is untouched: an artifact genuinely built from a superseded upstream
+    and now feeding later stages is still an error, which is the whole point of
+    the check.
+
     The rebuttal path is unchanged and still checked in full: `assessed_version`
     must equal the upstream's current version and carry a non-empty
     `assessment`, whatever stage owns the artifact.
@@ -755,12 +779,29 @@ def check_input_versions(story, artifacts, stages, stage_order) -> None:
 
             if recorded != current:
                 owning_stage = producer.get(key)
+                input_stage = producer.get(known[upstream_rel][0])
                 pending = (
                     current_index is not None
                     and owning_stage in stage_order
                     and stage_order.index(owning_stage) >= current_index
                 )
-                if pending:
+                backward = (
+                    owning_stage in stage_order
+                    and input_stage in stage_order
+                    and stage_order.index(input_stage) > stage_order.index(owning_stage)
+                )
+                if not pending and backward:
+                    warn(
+                        f"{rel}: inputs[{upstream_rel}] records version {recorded}, but "
+                        f"{upstream_rel} is at version {current} - stale input on a "
+                        f"backward edge. {upstream_rel} is owned by {input_stage}, which "
+                        f"comes after {owning_stage} in stage_order, so {owning_stage} "
+                        f"can only re-run through a loop-back from {input_stage} - and a "
+                        f"loop-back needs a CHANGES_REQUIRED verdict, which would have "
+                        f"re-run {owning_stage} anyway. A PASS leaves nothing here to "
+                        f"consume; the staleness is structural, not substantive"
+                    )
+                elif pending:
                     warn(
                         f"{rel}: inputs[{upstream_rel}] records version {recorded}, but "
                         f"{upstream_rel} is at version {current} - stale input. "
