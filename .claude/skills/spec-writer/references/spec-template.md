@@ -12,6 +12,33 @@ project document (`per docs/architecture/security-conventions.md SC-1`), or a
 resolved Open Decision. A statement with no citable source is not a
 requirement — it belongs in Open Decisions as a question.
 
+## Self-describing sections
+
+**Traceability, Affected Components and Open Decisions are self-describing
+sections.** They do not carry requirements of their own. Each one describes
+either the rest of this document (Traceability, Affected Components) or the
+current state of another authoritative artifact (Open Decisions → the decision
+registry). Their correctness therefore depends on something that changes
+underneath them.
+
+Two consequences, and they are not optional:
+
+1. **After any change to the requirements, re-derive all three from the final
+   document** — do not patch them incrementally alongside the edit that caused
+   the change. A requirement renumbered, split, merged, narrowed or deleted
+   invalidates rows in Traceability, may add or remove a layer in Affected
+   Components, and may change which decision blocks what. Re-reading the three
+   sections against the finished text is the last step of every revision, not a
+   step that happens while the text is still moving.
+2. **A self-describing section never becomes a second copy of the state it
+   describes.** Referencing an authoritative artifact means naming it and
+   pointing at it. It does not mean restating its version, its item count, its
+   ordering, its status, or where each of its entries came from. A copy of
+   another artifact's state is stale the moment that artifact advances, and a
+   specification that carries such a copy is guaranteed to disagree with the
+   registry sooner or later, through no change of its own. Point; do not
+   transcribe.
+
 ```markdown
 ---
 artifact_type: specification
@@ -116,9 +143,26 @@ EC-1. <edge case> — relates to FR-<n> / BR-<n>
 
 ## Affected Components
 
-Reason in terms of the project layering
-(`docs/architecture/module-map.md`). Name concrete files where they already
-exist; otherwise name the layer and its responsibility.
+Reason in terms of the project layering (`docs/architecture/module-map.md`).
+
+**Never invent a filename.** A concrete file path may appear in this table only
+when one of these two holds, and the row must make clear which:
+
+1. the file already exists in the repository tree — verified by looking, not by
+   recalling what a project of this shape usually contains; or
+2. a repository convention names it directly, so the path is prescribed rather
+   than guessed (a naming pattern in `docs/architecture/module-map.md`, a path
+   in `docs/workflow/artifact-paths.yaml`, a file a documented command emits).
+
+Where neither holds — the file does not exist yet and no convention prescribes
+its name — **name the layer and the responsibility instead**, and say what has
+to become true for it to exist ("a shared domain-error type, owned by the
+Story that first needs one"). A plausible-looking path is worse than an
+unnamed responsibility: it reads as a decision that was made, and downstream
+stages will build against it.
+
+This is a ban on invented paths, not on real ones. A file that exists gets
+named.
 
 | Layer | Component | Why it is affected |
 |---|---|---|
@@ -135,12 +179,38 @@ Carried from the Story, plus anything this specification deliberately excludes.
 
 ## Open Decisions
 
-Every unresolved decision that affects this Story, with its impact. Carry
-forward every question the Story or the clarification report already flagged —
-do not drop one because it was not independently rediscovered, and do not
-propose a value, however hedged, for anything the registry lists as unresolved.
+**The decision registry (`docs/decisions/{story_id}-open-decisions.md`) is the
+source of truth for this Story's open decisions.** This section is a pointer
+into it, scoped to what this specification cannot state without an answer — it
+is not a summary of the registry and never a copy of it.
 
-- OD-<id> — <question> — <what it blocks>
+List **only the decision ids that block a requirement in this document**, and
+for each one say **what it blocks here**: the requirement, validation rule,
+security requirement or error case that cannot be stated until it is answered.
+Read the registry to decide what belongs in the list; carry forward every
+question the Story or the clarification report flagged that blocks something
+here, and do not propose a value, however hedged, for anything the registry
+lists as unresolved.
+
+- OD-<id> — <what in this document it blocks, and how>
+
+**Do not restate registry state.** The following belong to the registry and
+must not be transcribed into this section or anywhere else in this
+specification:
+
+- how many decisions exist, how many are open, or how many are resolved;
+- the registry's `version`;
+- the stage, artifact or review at which a decision was raised;
+- a decision's `status`, its ordering, or its full question text;
+- any other field the registry owns.
+
+Each of those is stale the moment the registry advances, and the registry
+advances for reasons that have nothing to do with this document. A reader who
+needs a count, a version, or an origin opens the registry. Naming the file once
+and citing ids is the whole contract.
+
+A decision in the registry that blocks nothing in this document is not listed
+here; that is not a dropped question, because the registry still holds it.
 
 ## Traceability
 

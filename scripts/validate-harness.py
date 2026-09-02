@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -65,6 +66,13 @@ NON_STAGE_SKILLS = {"pre-commit-checklist", "story-orchestrator"}
 
 # Registered outside the per-Story flow: written across Stories, not by a stage.
 CROSS_STORY_ARTIFACTS = {"workflow_history", "project_state", "story_catalog"}
+
+# Allowance for clock skew when judging a timestamp "in the future". The defect
+# this guards against is a hard-coded date - hours or days out, never seconds -
+# so a few minutes of slack between the machine that wrote an artifact and the
+# machine validating it costs nothing and stops a CI runner with a slightly slow
+# clock from failing a correct tree.
+CLOCK_SKEW_TOLERANCE = timedelta(minutes=5)
 
 errors: list[str] = []
 warnings: list[str] = []
@@ -173,6 +181,128 @@ def read_artifacts(text: str) -> dict[str, dict[str, str]]:
     return {k: v for k, v in artifacts.items() if "pattern" in v}
 
 
+def parse_timestamp(value: str) -> datetime | None:
+    """ISO-8601 -> aware datetime, or None when it does not parse.
+
+    Everything the harness writes is UTC (`...Z`). A value with no offset is
+    read as UTC rather than rejected: the schema asks for ISO-8601 and this
+    script is not the place to litigate the shape, only whether the instant is
+    possible.
+    """
+    text = value.strip().strip("\"'")
+    if not text or text == "null":
+        return None
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    try:
+        stamp = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp
+
+
+def read_front_matter(path: Path) -> dict | None:
+    """Front matter of a story-level Markdown artifact (artifact-schema.md).
+
+    Returns the scalar fields plus `inputs`, a list of
+    {path, version, assessed_version, assessment}. None when the file has no
+    front-matter block at all - the Skill docs and templates that merely quote
+    one are not artifacts and must not be read as such.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    if end == -1:
+        return None
+    block = text[3:end]
+
+    front: dict = {"inputs": []}
+    entry: dict | None = None
+    in_inputs = False
+    folded_key: str | None = None
+
+    for raw in block.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+
+        top = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", raw)
+        if top:
+            key, value = top.group(1), top.group(2).strip()
+            in_inputs = key == "inputs"
+            folded_key = None
+            entry = None
+            if not in_inputs:
+                front[key] = value
+            continue
+
+        if not in_inputs:
+            continue
+
+        item = re.match(r"^\s*-\s+path:\s*(.+?)\s*$", raw)
+        if item:
+            entry = {"path": item.group(1).strip().strip("\"'"), "version": None}
+            front["inputs"].append(entry)
+            folded_key = None
+            continue
+
+        if entry is None:
+            continue
+
+        field = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", raw)
+        if field:
+            key, value = field.group(1), field.group(2).strip()
+            if value in (">", "|", ">-", "|-"):
+                entry[key] = ""
+                folded_key = key
+            else:
+                entry[key] = value
+                folded_key = None
+            continue
+
+        if folded_key is not None:
+            entry[folded_key] = (entry[folded_key] + " " + raw.strip()).strip()
+
+    return front
+
+
+def as_int(value) -> int | None:
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def story_artifact_files(story: str, artifacts: dict) -> dict[str, tuple[str, dict]]:
+    """{relative path: (artifact key, front matter)} for the active Story.
+
+    Only registry-resolvable Markdown artifacts that exist and carry front
+    matter. `{slug}` patterns (the Story itself) are skipped: they are not
+    resolvable from the registry alone, and artifact-schema.md exempts the Story
+    from the produced-artifact block anyway.
+    """
+    found: dict[str, tuple[str, dict]] = {}
+    for key, meta in sorted(artifacts.items()):
+        if key in CROSS_STORY_ARTIFACTS:
+            continue
+        pattern = meta["pattern"]
+        if "{slug}" in pattern or not pattern.endswith(".md"):
+            continue
+        rel = pattern.replace("{story_id}", story)
+        path = REPO / rel
+        if not path.is_file():
+            continue
+        front = read_front_matter(path)
+        if front is not None:
+            found[rel] = (key, front)
+    return found
+
+
 def read_scalars(text: str) -> dict[str, str]:
     """Top-level `key: value` pairs, comments and nesting ignored."""
     out: dict[str, str] = {}
@@ -182,6 +312,30 @@ def read_scalars(text: str) -> dict[str, str]:
         key, _, value = raw.partition(":")
         out[key.strip()] = value.split("#")[0].strip()
     return out
+
+
+def gate_is_present(state_text: str) -> bool:
+    """Whether workflow-state.yaml carries a `pending_human_gate` object.
+
+    `read_scalars` ignores nesting, so the block-form mapping that
+    `state-schema.md` prescribes reaches it as the empty string and would read
+    as absent - which would make the human-gate check below unsatisfiable at
+    every gate. Both spellings are accepted here: a value on the key's own line
+    (`null`, or an inline mapping), or an indented block beneath it.
+    """
+    lines = state_text.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("pending_human_gate:"):
+            continue
+        inline = line.partition(":")[2].split("#")[0].strip()
+        if inline:
+            return inline != "null"
+        for following in lines[index + 1 :]:
+            if not following.strip():
+                continue
+            return following.startswith((" ", "\t"))
+        return False
+    return False
 
 
 # --------------------------------------------------------------------------
@@ -391,7 +545,7 @@ def check_state(stage_order, stages, artifacts) -> None:
         error(f"workflow-state.yaml: attempt {state.get('attempt')!r} is not an integer")
 
     is_gate = stages.get(stage, {}).get("type") == "human_gate"
-    has_gate = state.get("pending_human_gate") not in (None, "null", "")
+    has_gate = gate_is_present(state_text)
     if is_gate and not has_gate:
         error(f"workflow-state.yaml: current_stage {stage} is a human gate but pending_human_gate is null")
     if has_gate and not is_gate:
@@ -478,6 +632,222 @@ def check_history(story, stage_order) -> None:
             )
 
 
+def check_artifact_timestamps(story, artifacts) -> None:
+    """`updated_at` may not be ahead of the clock.
+
+    artifact-schema.md requires `created_at` / `updated_at` to come from the
+    system clock at runtime, and says in as many words that example dates in
+    Skill docs are illustrative. A future `updated_at` is the signature of a
+    hard-coded string copied out of a template: it makes the artifact look
+    newer than anything written after it, and any ordering derived from
+    timestamps is wrong from that point on.
+
+    An error, not a warning: an artifact is revisable. Its owning stage re-runs,
+    reads the clock, and the value is correct again.
+    """
+    if not story or story == "null":
+        return
+
+    now = datetime.now(timezone.utc)
+    limit = now + CLOCK_SKEW_TOLERANCE
+
+    for rel, (_key, front) in sorted(story_artifact_files(story, artifacts).items()):
+        raw = front.get("updated_at")
+        if not raw or raw == "null":
+            continue
+        stamp = parse_timestamp(raw)
+        if stamp is None:
+            error(f"{rel}: updated_at {raw!r} is not a parsable ISO-8601 timestamp")
+            continue
+        if stamp > limit:
+            error(
+                f"{rel}: updated_at {raw} is in the future "
+                f"(now {now.strftime('%Y-%m-%dT%H:%M:%SZ')}) - "
+                f"artifact-schema.md requires the runtime clock, not a copied example"
+            )
+
+
+def check_input_versions(story, artifacts) -> None:
+    """`inputs[].version` must match the upstream artifact's current version.
+
+    The staleness contract in artifact-schema.md: a downstream artifact records
+    the version it read, and a mismatch against the upstream's current `version`
+    means it was written from information that has since changed. The contract
+    lets a stage rebut that presumption in place, with `assessed_version` (which
+    must equal the upstream's current version) and a non-empty `assessment`
+    saying why the change is not consumed here. Absent the rebuttal, the
+    mismatch stands.
+
+    An error, not a warning: both remedies are available at any time - re-run
+    the stage against the current upstream, or record the assessment.
+    """
+    if not story or story == "null":
+        return
+
+    known = story_artifact_files(story, artifacts)
+    for rel, (_key, front) in sorted(known.items()):
+        for entry in front.get("inputs", []):
+            upstream_rel = entry.get("path")
+            if not upstream_rel or upstream_rel not in known:
+                continue  # external input, or one this registry does not resolve
+            upstream = known[upstream_rel][1]
+            current = as_int(upstream.get("version"))
+            recorded = as_int(entry.get("version"))
+            if current is None or recorded is None:
+                continue  # the Story artifact and other version-less inputs
+
+            assessed = as_int(entry.get("assessed_version"))
+            assessment = (entry.get("assessment") or "").strip()
+
+            if assessed is not None:
+                if not assessment:
+                    error(
+                        f"{rel}: inputs[{upstream_rel}] records assessed_version "
+                        f"{assessed} with no assessment - artifact-schema.md requires "
+                        f"the reason the change is not consumed here"
+                    )
+                if assessed <= recorded:
+                    error(
+                        f"{rel}: inputs[{upstream_rel}] assessed_version {assessed} "
+                        f"is not later than the version read ({recorded}); it names "
+                        f"the newer upstream version that was examined"
+                    )
+                if assessed != current:
+                    error(
+                        f"{rel}: inputs[{upstream_rel}] was assessed against version "
+                        f"{assessed}, but {upstream_rel} is now at version {current} - "
+                        f"the rebuttal is void and the input is stale again"
+                    )
+                continue
+
+            if recorded != current:
+                error(
+                    f"{rel}: inputs[{upstream_rel}] records version {recorded}, but "
+                    f"{upstream_rel} is at version {current} - stale input. Re-run the "
+                    f"stage, or record assessed_version + assessment per "
+                    f"artifact-schema.md"
+                )
+
+
+def check_history_integrity(story, stages) -> None:
+    """Timestamp ordering and transition legality across history.jsonl.
+
+    Two invariants that nothing else enforces:
+
+    - **Timestamps are possible, and do not go backwards.** No event may carry
+      an instant ahead of the clock, and the log is append-only, so append order
+      is real order: a later line carrying an earlier instant means one of the
+      two events did not read the clock.
+    - **Every transition is one stage-map.yaml allows**, and consecutive events
+      chain (`to_stage` of one is `from_stage` of the next). A break in the
+      chain is an event that was never appended: the log then shows two forward
+      moves out of the same stage with no recorded move back.
+
+    The allowed transitions are read from stage-map.yaml, never restated here -
+    `next`, `on_approve`, `on_reject` and every `loop_back` target, plus a
+    `BLOCKED` event holding at its own stage, which is what rule 4 of
+    state-schema.md describes.
+
+    **Warnings, not errors.** history.jsonl is append-only under state-schema.md
+    and must not be rewritten, so a violation already in the log has no repair.
+    Failing on one would wedge the harness permanently and the only way back
+    would be to falsify the record - which is worse than the defect. A warning
+    is permanent and visible, which is the honest outcome: the log says what
+    happened, including the parts that went wrong.
+    """
+    path = REPO / "docs" / "workflow" / "history.jsonl"
+    if not path.is_file():
+        return  # already reported by check_history
+
+    events: list[tuple[int, dict]] = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            events.append((number, json.loads(line)))
+        except json.JSONDecodeError:
+            continue  # already reported by check_history
+
+    # --- timestamps are possible, and do not decrease ---------------------
+    now = datetime.now(timezone.utc)
+    limit = now + CLOCK_SKEW_TOLERANCE
+    previous: tuple[int, datetime] | None = None
+    for number, event in events:
+        stamp = parse_timestamp(str(event.get("timestamp", "")))
+        if stamp is None:
+            warn(f"history.jsonl line {number}: timestamp {event.get('timestamp')!r} does not parse")
+            continue
+        if stamp > limit:
+            warn(
+                f"history.jsonl line {number}: timestamp {event['timestamp']} is in the "
+                f"future (now {now.strftime('%Y-%m-%dT%H:%M:%SZ')}) - the run that wrote "
+                f"it used a hard-coded string instead of the system clock"
+            )
+        if previous and stamp < previous[1]:
+            warn(
+                f"history.jsonl line {number}: timestamp {event['timestamp']} is earlier "
+                f"than line {previous[0]} ({previous[1].strftime('%Y-%m-%dT%H:%M:%SZ')}); "
+                f"an append-only log cannot go backwards in time"
+            )
+        previous = (number, stamp)
+
+    # --- transitions are legal, and the chain is unbroken -----------------
+    def allowed_from(stage: str) -> set[str]:
+        body = stages.get(stage, {})
+        targets = {body.get(f) for f in ("next", "on_approve", "on_reject")}
+        targets |= set(body.get("loop_back", {}).values())
+        return {t for t in targets if t}
+
+    last_to: tuple[int, str] | None = None
+    for number, event in events:
+        if story and story != "null" and event.get("story") != story:
+            continue
+        source, target = event.get("from_stage"), event.get("to_stage")
+        if not target:
+            continue
+
+        if source:
+            if source not in stages:
+                last_to = (number, target)
+                continue  # check_history already reported the unknown stage
+            legal = allowed_from(source)
+            held = target == source and event.get("verdict") == "BLOCKED"
+            if target not in legal and not held:
+                warn(
+                    f"history.jsonl line {number}: {source} -> {target} is not a "
+                    f"transition stage-map.yaml defines for {source} "
+                    f"(allowed: {', '.join(sorted(legal)) or 'none'})"
+                )
+
+            if last_to and last_to[1] != source:
+                warn(
+                    f"history.jsonl line {number}: starts at {source}, but line "
+                    f"{last_to[0]} left the workflow at {last_to[1]} - an event "
+                    f"recording the move {last_to[1]} -> {source} was never appended"
+                )
+
+        last_to = (number, target)
+
+
+# --------------------------------------------------------------------------
+# Not implemented: detecting one artifact transcribing another's state
+#
+# A specification that restates the decision registry's version or item count
+# goes stale whenever the registry moves, through no change of its own - the
+# defect that .claude/skills/spec-writer/references/spec-template.md
+# ("Self-describing sections") now forbids. Catching it mechanically would mean
+# reading prose for numbers and guessing which of them are claims about another
+# artifact. Every version of that heuristic tried here matched requirement text
+# that legitimately carries a number (a length bound, a status code, an id), and
+# a check whose failures are mostly false is one people learn to ignore - which
+# costs more than the check is worth.
+#
+# So this stays with spec-verifier, which reads the sentence and can tell a
+# claim about the registry from a requirement. Its calibration rule is in
+# .claude/skills/spec-verifier/SKILL.md ("Calibrating a defect in a
+# self-describing section").
+# --------------------------------------------------------------------------
+
 def check_unrecorded_artifacts(story, artifacts, stages) -> None:
     """Warn about Story artifacts that no recorded stage run produced.
 
@@ -556,6 +926,9 @@ def main() -> int:
     story = check_state(stage_order, stages, artifacts)
     check_catalog(story)
     check_history(story, stage_order)
+    check_history_integrity(story, stages)
+    check_artifact_timestamps(story, artifacts)
+    check_input_versions(story, artifacts)
     check_unrecorded_artifacts(story, artifacts, stages)
 
     stage_skills = {s.get("skill") for s in stages.values() if s.get("skill")}

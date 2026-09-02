@@ -47,9 +47,11 @@ primary source of truth for design, planning, testing, and implementation.
 # Preconditions
 
 - `clarification_report` and `open_decisions` exist (`CLARIFICATION` completed).
-- If unresolved Open Decisions exist: do **not** guess answers. Represent each in
-  the Specification's "Open Decisions" section and describe its impact on the
-  affected requirements. The decisions are resolved at `HUMAN_SPEC_APPROVAL`.
+- If unresolved Open Decisions exist: do **not** guess answers. Record the ones
+  that block a requirement in the Specification's "Open Decisions" section, by
+  id, with what each blocks — under the contract that section carries in
+  `references/spec-template.md`: a pointer into the registry, never a copy of
+  it. The decisions are resolved at `HUMAN_SPEC_APPROVAL`.
 
 # Non-negotiable constraints
 
@@ -134,11 +136,34 @@ Before returning the result envelope, confirm each of these:
   requirement traces to the Story or to a resolved Open Decision.
 - No requirement invents an endpoint, field, business rule, or security policy
   that no input artifact contains.
-- Every unresolved Open Decision appears with its effect on the requirements it
-  touches.
+- Every unresolved Open Decision that blocks something in this document appears,
+  named by id, with what it blocks here. The registry
+  (`docs/decisions/{story_id}-open-decisions.md`) stays the source of truth: no
+  count, version, status, origin stage or ordering is transcribed into the
+  Specification. See the Open Decisions section of
+  `references/spec-template.md`.
 - No `TODO` / `TBD` / `FIXME` / `???` remains outside the Open Decisions section.
 - Every section of `references/spec-template.md` is present.
 - On a revision: no requirement the review left unchallenged was dropped.
+- **Every behavior names the layer that owns it, and no component is invented.**
+  For each behavior the Specification states, name the responsible layer from
+  `docs/architecture/module-map.md`. Before writing any concrete file path,
+  check the repository conventions for a *deferred assignment* — a component
+  the conventions say does not exist yet and will be "created by the Story that
+  first needs it" (the `src/lib/` row of `docs/architecture/module-map.md`, and
+  `docs/architecture/architecture.md` AD-6 for `src/lib/errors.ts`). Where the
+  file does not exist and no convention prescribes its name, record the layer
+  and the responsibility. A component is never named because it seems like the
+  logical place for the behavior to live; it is named because the tree or a
+  convention already puts it there.
+- **The three self-describing sections were re-derived after the last edit.**
+  Once the final wording of the requirements is settled — after the last
+  change, not alongside it — re-derive `Traceability` from the finished
+  requirement text, re-check `Affected Components` against the finished
+  behaviors and the repository tree, and re-check `Open Decisions` against the
+  current registry. Each is a fresh derivation from the final document, not an
+  inspection of what the previous revision said. This is the last action before
+  the result envelope; an edit made after it restarts it.
 
 
 # Result Envelope
@@ -147,21 +172,29 @@ Return exactly this; the story-orchestrator records the transition:
 
 ```yaml
 result:
-  verdict: PASS | BLOCKED
+  verdict: PASS | CHANGES_REQUIRED | BLOCKED
   stage: SPECIFICATION
   story: <StoryId>
   artifact_status: DRAFT
   artifacts:
     - docs/specifications/<StoryId>-spec.md
   next_stage: SPEC_REVIEW
-  loop_back_stage: null
+  loop_back_stage: null            # or CLARIFICATION
+  loop_back_key: null              # or new_open_decision
   blocking_issues: []
   non_blocking_findings: []
 ```
 
 - `PASS` — all Acceptance Criteria represented; validation, security, error
-  handling, and traceability sections complete; Open Decisions listed with
-  impact.
+  handling, and traceability sections complete; the Open Decisions that block a
+  requirement here listed by id with what they block.
+- `CHANGES_REQUIRED` with `loop_back_stage: CLARIFICATION`, `loop_back_key:
+  new_open_decision` — writing the Specification surfaced a question the
+  decision registry does not hold. `open_decisions` is owned by `us-clarifier`
+  (`docs/workflow/artifact-paths.yaml`) and this Skill must not write it, so the
+  registry is repaired by re-running `CLARIFICATION`, not by editing the file
+  out of band. Name the question in `blocking_issues`, phrased as a question and
+  with the requirement it blocks. Do not invent the id, and do not answer it.
 - `BLOCKED` — `clarification_report` missing, or an Open Decision makes a
   mandatory requirement impossible to state even as a documented gap.
 

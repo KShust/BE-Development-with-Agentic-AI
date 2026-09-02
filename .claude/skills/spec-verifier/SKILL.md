@@ -59,8 +59,15 @@ The Skill is a quality gate. It does not edit the Specification.
 - **Security**: authentication, authorization, and credential-handling
   requirements are stated and cite `security-conventions.md` or an Open Decision
   — none invented.
-- **Open Decisions**: every Open Decision from `open_decisions` appears in the
-  Specification with its impact described.
+- **Open Decisions**: every Open Decision from `open_decisions` that blocks a
+  requirement in the Specification appears there, by id, with what it blocks. A
+  decision that blocks nothing in the Specification is not required to appear —
+  the registry still holds it — and the Specification is *not* expected to
+  restate the registry's count, version, statuses, ordering, or the stage at
+  which each decision was raised (`references/spec-template.md`, Open
+  Decisions). A transcription of registry state that has gone stale is a defect
+  in the Specification, calibrated under "Calibrating a defect in a
+  self-describing section" below.
 - **Testability**: each Acceptance Criterion is expressed in observable terms.
 
 # Non-negotiable constraints
@@ -101,6 +108,49 @@ Severity is defined once, in `docs/workflow/artifact-lifecycle.md` §4 (`Critica
 - **Minor** — wording, ordering, a duplicated sentence, an id that would read
   better renamed.
 
+## Calibrating a defect in a self-describing section
+
+Three sections of the Specification describe something other than a
+requirement: `Traceability` and `Affected Components` describe the rest of the
+document, and `Open Decisions` points at the decision registry
+(`references/spec-template.md`, "Self-describing sections"). A defect confined
+to one of them — a stale count, an out-of-date version, an ordering that no
+longer matches, a copy that has diverged from the artifact it copied, any
+description of the document that the last revision left behind — is
+**`Minor`** when both of these hold:
+
+1. it does not change what would be built from this Specification; and
+2. it does not change what `HUMAN_SPEC_APPROVAL` decides — the person reads the
+   same decisions, the same requirements, and reaches the same answer either
+   way.
+
+Classify it `Minor` and let the verdict be `PASS` with the finding in
+`non_blocking_findings`. **A self-describing section being out of date is not,
+by itself, a `Major`.** These sections describe state that moves for reasons
+outside this document; treating every divergence as blocking makes a `PASS`
+structurally unreachable, because the next revision that fixes one can be
+overtaken by the registry again before it is reviewed. That is a defect in the
+gate, not diligence.
+
+This is a calibration, not an exemption. The same defect **is** `Major` or
+`Critical` on its own merits when the divergence changes something real:
+
+- a `Traceability` row that claims coverage the requirement text does not give
+  (constraint 4 above) — the row is wrong about the document, and the gap it
+  hides is a real gap;
+- an `Affected Components` entry naming a component that does not exist and no
+  convention prescribes — downstream stages would build against it;
+- an `Open Decisions` list that **omits** a decision blocking a requirement
+  here, or that answers one — the gate is then deciding on the wrong set;
+- any divergence that changes implementation scope, a requirement's meaning, or
+  the information the gate acts on.
+
+Severity still follows consequence, not confidence
+(`docs/workflow/artifact-lifecycle.md` §4). The question to answer explicitly in
+the finding is the one above: *does this change what gets built, or what the
+gate decides?* Record that answer in the finding text, so the classification is
+auditable rather than asserted.
+
 # Output
 
 - `specification_review`
@@ -136,12 +186,14 @@ result:
   verdict: PASS | CHANGES_REQUIRED | BLOCKED
   stage: SPEC_REVIEW
   story: <StoryId>
-  artifact_status: APPROVED        # of the review artifact itself
+  artifact_status: DRAFT           # of the review artifact itself, per
+                                   # artifact-lifecycle.md §1: this stage
+                                   # produces it, it is not approved here
   artifacts:
     - docs/reviews/specifications/<StoryId>-spec-review.md
   next_stage: HUMAN_SPEC_APPROVAL
-  loop_back_stage: null            # or SPECIFICATION
-  loop_back_key: null              # or changes_required
+  loop_back_stage: null            # or SPECIFICATION, or CLARIFICATION
+  loop_back_key: null              # or changes_required, or new_open_decision
   blocking_issues: []
   non_blocking_findings: []
 ```
@@ -149,7 +201,15 @@ result:
 - `PASS` — no `Critical`/`Major` findings; the Specification is
   implementation-ready. (`Minor` findings go in `non_blocking_findings`.)
 - `CHANGES_REQUIRED` — `Critical` or `Major` findings; `loop_back_stage:
-  SPECIFICATION`.
+  SPECIFICATION`, `loop_back_key: changes_required`.
+- `CHANGES_REQUIRED` with `loop_back_stage: CLARIFICATION`, `loop_back_key:
+  new_open_decision` — the review surfaced a question the decision registry does
+  not hold, and the Specification cannot be corrected without it. `open_decisions`
+  is owned by `us-clarifier`, so the registry is repaired by re-running
+  `CLARIFICATION`, never by this Skill editing it. Constraints 1 and 2 still
+  hold: mirror the question back, do not answer it and do not draft its entry.
+  Use this key only when the missing decision is what blocks the Specification;
+  a finding the author can close without a new decision is `changes_required`.
 - `BLOCKED` — `specification` missing/stale, inputs unresolvable, or an Open
   Decision prevents meaningful review.
 

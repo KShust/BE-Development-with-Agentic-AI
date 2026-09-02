@@ -17,6 +17,8 @@ Exit: 0 = every case was detected, 1 = at least one slipped through.
 
 from __future__ import annotations
 
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -79,6 +81,154 @@ def edit(work: Path, rel: str, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
 
 
+def current_stage(work: Path) -> str:
+    """The `current_stage` the scratch tree's workflow state actually holds.
+
+    Cases that need to move the workflow to a different stage must not hard-code
+    the stage it is at today: the value is live state, it changes as the active
+    Story advances, and an anchor on one stage id turns a correct tree into a
+    failing test run. Read it instead.
+    """
+    text = (work / "docs" / "workflow" / "workflow-state.yaml").read_text(encoding="utf-8")
+    found = re.search(r"^current_stage:\s*(\S+)\s*$", text, re.M)
+    if not found:
+        raise AssertionError("workflow-state.yaml has no parsable current_stage")
+    return found.group(1)
+
+
+GATE = "HUMAN_SPEC_APPROVAL"
+
+# A populated gate object in the shape state-schema.md prescribes: a block
+# mapping, not an inline scalar. The cases below write it out explicitly instead
+# of editing whatever the live tree holds, so they keep testing the same thing
+# whether or not the active Story happens to be sitting at a gate today.
+GATE_BLOCK = """
+  stage: HUMAN_SPEC_APPROVAL
+  status: {status}
+  required_artifacts:
+    - type: specification
+      path: docs/specifications/US-001-spec.md
+      version: 1
+  automated_verdict: PASS
+  blocking_findings: []
+  requested_at: 2026-08-31T00:00:00Z
+  decided_at: null
+  decided_by: null
+  comment: null"""
+
+
+def at_stage(work: Path, stage: str) -> None:
+    """Move the scratch tree's workflow state to `stage`, from wherever it is."""
+    was = current_stage(work)
+    if was != stage:
+        edit(
+            work,
+            "docs/workflow/workflow-state.yaml",
+            f"current_stage: {was}",
+            f"current_stage: {stage}",
+        )
+
+
+def set_gate(work: Path, body: str) -> None:
+    """Replace the whole `pending_human_gate` value, whatever shape it is in.
+
+    The value may be an inline scalar (`null`) or an indented block, and a case
+    must be able to swap either for either - so this drops the key's own line
+    together with every indented line beneath it, then writes `body`.
+    """
+    path = work / "docs" / "workflow" / "workflow-state.yaml"
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    out: list[str] = []
+    index = 0
+    replaced = False
+    while index < len(lines):
+        if lines[index].startswith("pending_human_gate:"):
+            out.append("pending_human_gate:" + body + "\n")
+            replaced = True
+            index += 1
+            while index < len(lines) and lines[index].startswith((" ", "\t")):
+                index += 1
+            continue
+        out.append(lines[index])
+        index += 1
+    if not replaced:
+        raise AssertionError("workflow-state.yaml has no pending_human_gate key")
+    path.write_text("".join(out), encoding="utf-8", newline="\n")
+
+
+SPEC = "docs/specifications/US-001-spec.md"
+REVIEW = "docs/reviews/specifications/US-001-spec-review.md"
+
+
+def front_matter(work: Path, rel: str, key: str) -> str:
+    """A top-level front-matter scalar, as the scratch tree currently holds it.
+
+    Anchored at column 0, so `version:` finds the artifact's own version and not
+    one of the indented `inputs[]` entries.
+    """
+    text = (work / rel).read_text(encoding="utf-8")
+    found = re.search(rf"^{key}:\s*(\S+)\s*$", text, re.M)
+    if not found:
+        raise AssertionError(f"{rel}: no parsable {key} in front matter")
+    return found.group(1)
+
+
+def bump_version(work: Path, rel: str, by: int = 1) -> int:
+    """Advance an artifact's own `version`, returning the new value."""
+    was = int(front_matter(work, rel, "version"))
+    edit(work, rel, f"version: {was}\n", f"version: {was + by}\n")
+    return was + by
+
+
+def recorded_input(work: Path, rel: str, upstream: str) -> int:
+    """The version `rel` records having consumed `upstream` at."""
+    text = (work / rel).read_text(encoding="utf-8")
+    found = re.search(
+        rf"^  - path: {re.escape(upstream)}\n    version: (\d+)\s*$", text, re.M
+    )
+    if not found:
+        raise AssertionError(f"{rel}: no versioned inputs[] entry for {upstream}")
+    return int(found.group(1))
+
+
+def rebut(work: Path, rel: str, upstream: str, assessed: int, reason: str | None) -> None:
+    """Add an assessed_version (and optionally its assessment) to an input entry."""
+    was = recorded_input(work, rel, upstream)
+    body = f"  - path: {upstream}\n    version: {was}\n    assessed_version: {assessed}\n"
+    if reason is not None:
+        body += f"    assessment: >\n      {reason}\n"
+    edit(work, rel, f"  - path: {upstream}\n    version: {was}\n", body)
+
+
+def event(timestamp: str, source: str, target: str, **overrides) -> dict:
+    """One history event with the schema's required fields filled in."""
+    body = {
+        "timestamp": timestamp,
+        "story": "US-001",
+        "from_stage": source,
+        "to_stage": target,
+        "skill": "us-clarifier",
+        "verdict": "PASS",
+        "artifacts": [],
+        "attempt": 1,
+    }
+    body.update(overrides)
+    return body
+
+
+def append_history(work: Path, *events: dict) -> None:
+    """Append events to the scratch tree's history.jsonl.
+
+    The baseline log holds a single activation event, so every history case
+    builds the sequence it needs. This appends rather than rewrites, which is
+    also the only thing state-schema.md allows the real log.
+    """
+    path = work / "docs" / "workflow" / "history.jsonl"
+    body = path.read_text(encoding="utf-8").rstrip("\n")
+    lines = [body] + [json.dumps(e) for e in events]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
 # --------------------------------------------------------------------------
 # One defect per case
 # --------------------------------------------------------------------------
@@ -106,7 +256,12 @@ def _(work):
 
 @case("current_stage is not a real stage", "is not in stage_order")
 def _(work):
-    edit(work, "docs/workflow/workflow-state.yaml", "current_stage: CLARIFICATION", "current_stage: DESIGN")
+    edit(
+        work,
+        "docs/workflow/workflow-state.yaml",
+        f"current_stage: {current_stage(work)}",
+        "current_stage: DESIGN",
+    )
 
 
 @case("stage consumes an unregistered artifact", "absent from artifact-paths.yaml")
@@ -151,12 +306,25 @@ def _(work):
 
 @case("human gate with no pending_human_gate", "pending_human_gate is null")
 def _(work):
-    edit(
-        work,
-        "docs/workflow/workflow-state.yaml",
-        "current_stage: CLARIFICATION",
-        "current_stage: HUMAN_SPEC_APPROVAL",
-    )
+    at_stage(work, GATE)
+    set_gate(work, " null")
+
+
+# Both cases below require the validator to SEE a block-form pending_human_gate.
+# Read as absent - which is what a top-level-scalars-only parse does to a nested
+# mapping - neither check can fire, and each silently stops testing anything.
+# That is the defect they exist to catch: it made the gate checks unsatisfiable
+# at every human gate, and went unnoticed until the workflow first reached one.
+@case("pending_human_gate carries a status that is not a gate status", "pending_human_gate.status")
+def _(work):
+    at_stage(work, GATE)
+    set_gate(work, GATE_BLOCK.format(status="AWAITING"))
+
+
+@case("pending_human_gate is set at a stage that is not a human gate", "is not a human gate")
+def _(work):
+    at_stage(work, "SPEC_REVIEW")
+    set_gate(work, GATE_BLOCK.format(status="PENDING"))
 
 
 @case(
@@ -167,6 +335,111 @@ def _(work):
 def _(work):
     (work / "docs" / "plans" / "US-001-implementation-plan.md").write_text(
         "# injected: never produced by IMPLEMENTATION_PLANNING\n", encoding="utf-8"
+    )
+
+
+# --------------------------------------------------------------------------
+# Artifact timestamps and the staleness contract (artifact-schema.md)
+# --------------------------------------------------------------------------
+
+
+@case("artifact updated_at is ahead of the clock", "2099-01-01T00:00:00Z is in the future")
+def _(work):
+    edit(
+        work,
+        SPEC,
+        f"updated_at: {front_matter(work, SPEC, 'updated_at')}",
+        "updated_at: 2099-01-01T00:00:00Z",
+    )
+
+
+@case("artifact updated_at does not parse", "not a parsable ISO-8601 timestamp")
+def _(work):
+    edit(
+        work,
+        SPEC,
+        f"updated_at: {front_matter(work, SPEC, 'updated_at')}",
+        "updated_at: last Tuesday",
+    )
+
+
+@case("downstream records a version the upstream has moved past", "stale input")
+def _(work):
+    # The review recorded the specification at the version it read. Advance the
+    # specification; the review carries no assessment, so it is stale.
+    bump_version(work, SPEC)
+
+
+@case("stale input rebutted with an assessment is accepted", "harness OK", warning=True)
+def _(work):
+    now_at = bump_version(work, SPEC)
+    rebut(
+        work,
+        REVIEW,
+        SPEC,
+        assessed=now_at,
+        reason=(
+            "The new revision rewrote the status banner only. This review "
+            "consumes the requirements and the traceability matrix, neither of "
+            "which moved."
+        ),
+    )
+
+
+@case("rebuttal names a version the upstream has already left behind", "the rebuttal is void")
+def _(work):
+    now_at = bump_version(work, SPEC, by=2)
+    rebut(work, REVIEW, SPEC, assessed=now_at - 1, reason="Banner only.")
+
+
+@case("rebuttal with no reason recorded", "with no assessment")
+def _(work):
+    now_at = bump_version(work, SPEC)
+    rebut(work, REVIEW, SPEC, assessed=now_at, reason=None)
+
+
+# --------------------------------------------------------------------------
+# history.jsonl integrity (state-schema.md, stage-map.yaml)
+#
+# These warn rather than fail: the log is append-only, so a violation already
+# recorded has no repair, and failing on one would wedge the harness with
+# falsifying the record as the only way out. The cases assert the warning is
+# raised and the run still exits clean.
+# --------------------------------------------------------------------------
+
+
+@case("history timestamp goes backwards", "cannot go backwards in time", warning=True)
+def _(work):
+    append_history(
+        work,
+        event("2026-08-31T01:00:00Z", "CLARIFICATION", "SPECIFICATION"),
+        event("2026-08-30T12:00:00Z", "SPECIFICATION", "SPEC_REVIEW", skill="spec-writer"),
+    )
+
+
+@case("history timestamp is ahead of the clock", "is in the future", warning=True)
+def _(work):
+    append_history(work, event("2099-01-01T00:00:00Z", "CLARIFICATION", "SPECIFICATION"))
+
+
+@case("history records a transition stage-map.yaml does not define", "is not a transition", warning=True)
+def _(work):
+    append_history(work, event("2026-08-31T01:00:00Z", "CLARIFICATION", "PR_REVIEW"))
+
+
+@case("a transition event was never appended", "was never appended", warning=True)
+def _(work):
+    # CLARIFICATION -> SPECIFICATION, then a jump that starts at SPEC_REVIEW:
+    # the SPECIFICATION -> SPEC_REVIEW event is missing from the chain.
+    append_history(
+        work,
+        event("2026-08-31T01:00:00Z", "CLARIFICATION", "SPECIFICATION"),
+        event(
+            "2026-08-31T02:00:00Z",
+            "SPEC_REVIEW",
+            "HUMAN_SPEC_APPROVAL",
+            skill="spec-verifier",
+        ),
     )
 
 

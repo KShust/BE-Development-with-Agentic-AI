@@ -52,7 +52,7 @@ current_stage: CLARIFICATION           # a canonical id from stage-map.yaml stag
 previous_stage: BACKLOG_SYNC           # canonical id or null
 last_completed_stage: BACKLOG_SYNC     # canonical id or null
 status: IN_PROGRESS                    # workflow status (artifact-lifecycle.md §3)
-attempt: 1                             # attempt counter for current_stage, >=1
+attempt: 1                             # run count of current_stage for this Story, >=1
 last_invoked_skill: null               # skill name or null
 last_result:                           # last stage result envelope summary, or null
   verdict: null                        # PASS | CHANGES_REQUIRED | BLOCKED | NOT_APPLICABLE
@@ -98,11 +98,41 @@ pending_human_gate:
 2. Every mutation also appends one event to `docs/workflow/history.jsonl`
    (schema below). History is append-only; never rewritten.
 3. `current_stage` must always be a member of `stage-map.yaml` `stage_order`.
-4. On `verdict: PASS` → `current_stage := stage.next`, `attempt := 1`.
-   On `verdict: CHANGES_REQUIRED` → `current_stage := stage.loop_back[key]`,
-   and if the target equals the previous occurrence of that stage,
-   `attempt += 1`.
-   On `verdict: BLOCKED` → `current_stage` unchanged, `status := BLOCKED`.
+4. **`attempt` is the run count of `current_stage`, and of that stage only.**
+   It is the number of times the stage now named by `current_stage` has been
+   entered for this Story, **counting the entry that is being recorded**. It is
+   never a total of stage runs across the workflow, never a count of loop-backs,
+   and never a count of attempts at some other stage.
+
+   The rule is the same whichever direction the transition goes, because the
+   counter belongs to the stage being entered, not to the move:
+
+   | Transition | `attempt` for the new `current_stage` |
+   |---|---|
+   | `PASS` → `stage.next`, a stage never entered before | `1` |
+   | `PASS` → `stage.next`, a stage entered before (a re-run after an earlier loop-back) | its previous count + 1 |
+   | `CHANGES_REQUIRED` → `stage.loop_back[key]`, never entered before | `1` |
+   | `CHANGES_REQUIRED` → `stage.loop_back[key]`, entered before | its previous count + 1 |
+   | `BLOCKED` | unchanged — `current_stage` does not move, so no new entry occurs |
+   | a human gate's `on_approve` / `on_reject` | the target stage's previous count + 1, or `1` if it has never been entered |
+
+   A forward move therefore does **not** reset the counter to `1` by itself; it
+   resets to `1` only because the stage ahead has usually never run. Re-entering
+   a stage that has run before always continues that stage's own series.
+
+   The value is derivable and must agree with the log: `attempt` equals the
+   number of `history.jsonl` events for this Story whose `to_stage` is the new
+   `current_stage`, including the event this transition appends. If the two
+   disagree, the state is wrong, not the history.
+
+   On `verdict: BLOCKED` → `current_stage` unchanged, `status := BLOCKED`,
+   `attempt` unchanged: the stage was entered once and has not been re-entered.
+
+   **`attempt` is a counter, `history.jsonl` is the record.** The counter answers
+   "how many times has *this* stage run"; the history answers "what actually
+   ran, in what order, with what verdict". Do not read a total of stage runs out
+   of the counter, and do not reconstruct a stage's series from the counter alone
+   when the history is available — the history is authoritative.
 5. Entering a `human_gate` stage sets `status := WAITING_FOR_HUMAN` and builds
    `pending_human_gate`. `/so:approve` sets it `APPROVED` and advances to
    `on_approve`. `/so:reject` sets it `REJECTED` and advances to `on_reject`.
@@ -128,6 +158,11 @@ One JSON object per line, append-only. Owned by `story-orchestrator`
   "attempt": 1
 }
 ```
+
+`attempt` in a history event is the run count of that event's `to_stage`,
+counting this event — the same value rule 4 defines, recorded at the moment of
+the transition. Reading a series of events for one `to_stage` therefore gives
+`1, 2, 3, …`; a gap in that series means an event was never appended.
 
 `verdict` in a history event is one of the review verdicts
 (`PASS` / `CHANGES_REQUIRED` / `BLOCKED` / `NOT_APPLICABLE`) or one of the

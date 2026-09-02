@@ -32,14 +32,56 @@ supersedes: null                            # or the relative path of the prior 
 | `status` | One of `DRAFT, IN_REVIEW, APPROVED, SUPERSEDED, ARCHIVED`. New artifacts start `DRAFT`. A review stage may set an input's `status` progression only through the orchestrator-recorded result; Skills do not silently flip other artifacts' status. |
 | `created_at` / `updated_at` | Generated at runtime from the system clock. Example dates in Skill docs are illustrative only and must be labelled as such. |
 | `produced_by` | The Skill named as `owner` of this `artifact_type` in `artifact-paths.yaml`. |
-| `inputs[]` | One entry per consumed artifact, with the version that was read. Enables stale-input detection. |
+| `inputs[]` | One entry per consumed artifact, with the version that was read. Enables stale-input detection. May optionally carry `assessed_version` + `assessment` — see the Staleness contract below. |
 | `supersedes` | `null` unless this revision replaces an earlier one; then the earlier file's path. The earlier file's `status` becomes `SUPERSEDED`. |
 
 ## Staleness contract
 
 - A reviewer that consumes artifact X at `version: N` records `{path: X, version: N}` in its own `inputs`.
-- If X is later revised to `version: N+1` (old becomes `SUPERSEDED`), any downstream artifact still recording `version: N` is **stale**.
-- Stale review or evidence artifacts **block progression** (`verdict: BLOCKED`) until the dependent stage re-runs against the current version.
+- If X is later revised to `version: N+1` (old becomes `SUPERSEDED`), any downstream artifact still recording `version: N` is **presumed stale**.
+- A **stale** review or evidence artifact **blocks progression** (`verdict: BLOCKED`) until the dependent stage re-runs against the current version.
+
+### Rebutting the presumption
+
+The presumption exists because a version mismatch usually means the downstream
+artifact was written from information that has since changed. It is not always
+true: an upstream revision may touch only parts the downstream artifact does not
+consume, and forcing a downstream re-run then bumps a version for no change in
+content — which bumps the next artifact down, and so on. That cascade is
+churn, and each hop through it is another chance for a review to find a fresh
+mismatch, so it does not converge on its own.
+
+**A downstream artifact is stale only when the upstream revision changed
+something that artifact actually consumes.** Where it did not, the downstream
+stage may record that judgement in its own front matter instead of re-running,
+by adding two optional fields to the `inputs[]` entry:
+
+```yaml
+inputs:
+  - path: docs/decisions/US-001-open-decisions.md
+    version: 5             # the version this artifact was written from
+    assessed_version: 6    # a later upstream version, read and judged not to affect this artifact
+    assessment: >          # required whenever assessed_version is present
+      v6 adds OD-US-001-13, which affects DB_DESIGN only. This Specification
+      states no requirement, validation rule or error case that depends on it,
+      and no section of it changes.
+```
+
+Rules for the rebuttal:
+
+| Rule | |
+|---|---|
+| Default | Absent `assessed_version`, a mismatch is stale. Silence is never a rebuttal. |
+| `assessed_version` | Must equal the upstream's **current** `version`, and be greater than `version`. A rebuttal against a version that is itself no longer current is void, and the artifact is stale again. |
+| `assessment` | Required with `assessed_version`, and never empty or generic. It names **what the upstream revision changed** and **why this artifact does not consume it**. "No relevant change" is not an assessment. |
+| Who may record it | Only the Skill that owns the downstream artifact, during a recorded run of its own stage. It is a claim made by that stage, not a note anyone may add. |
+| Scope | Never a way to defer a change the artifact does consume. If any consumed part moved, the artifact is stale — re-run the stage. |
+| Review | The claim is reviewable. The next review stage checks the assessment against the upstream diff; an assessment that does not hold is a finding against the downstream artifact, and the artifact is stale after all. |
+
+`version` still records what was actually read. `assessed_version` records what
+was examined and found not to matter. Keeping them separate is what makes the
+judgement auditable later: a reader can see both the version the content came
+from and the version someone stood behind.
 
 ## OpenAPI YAML exception
 
