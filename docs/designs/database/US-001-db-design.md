@@ -1,17 +1,44 @@
 ---
 artifact_type: database_design
 story: US-001
-version: 1
+version: 2
 status: DRAFT
 created_at: 2026-09-02T16:44:33Z
-updated_at: 2026-09-02T16:44:33Z
+updated_at: 2026-09-02T18:32:49Z
 produced_by: db-designer
 inputs:
   - path: docs/specifications/US-001-spec.md
     version: 14
   - path: docs/designs/api/US-001-api-design.md
     version: 1
+    assessed_version: 2
+    assessment: >
+      Revision 2 of the API design answers design review d-1 and d-2, both of
+      which live entirely in the error model. It gives the 429 a carrier (the
+      rate limiter's own handler raising a TooManyRequestsError, per the AD-6
+      amendment in commit fa21f62), and it assigns a valid-JSON non-object body
+      to the VALIDATION_FAILED branch with email and password both named in
+      details.fieldErrors, adding a minimum of one property to the FieldErrors
+      schema. This design consumes neither. A 429 is returned before the
+      handler runs, so it reaches no repository and creates no row; the
+      non-object body fails at the HTTP boundary before any service or
+      repository is called. Both request and response schemas are byte
+      identical between v1 and v2, so every column this design maps to a
+      contract field still maps to the same declaration, and the one contract
+      element it does consume - the 409 that a P2002 unique violation must be
+      translated into - is untouched by v2.
   - path: docs/designs/api/US-001-openapi.yaml
+    version: 1
+    assessed_version: 2
+    assessment: >
+      The whole v1-to-v2 diff of the contract is the info version, two response
+      descriptions (400 and 429), and a minimum of one property on the
+      FieldErrors schema. No schema this design maps a column to changed. The
+      RegisterRequest and RegisterResponse objects are identical in both
+      versions, so the column types, the constraints, the indexes and the
+      id/email/role/createdAt mapping in the paired entity model all still
+      trace to what the contract declares.
+  - path: docs/reviews/designs/US-001-design-review.md
     version: 1
   - path: docs/decisions/US-001-open-decisions.md
     version: 7
@@ -29,6 +56,21 @@ migration intent, and the sensitive-data rules.
 This Story carries the project's **first** datasource, model and migration:
 `prisma/schema.prisma` is a two-line placeholder today with no `datasource`,
 no `generator` and no model.
+
+> **Revision 2 — the `DB_DESIGN` re-run after API design v2, carrying one
+> correction.** `DESIGN_REVIEW` v1 accepted this design as it stands and looped
+> back only to `API_DESIGN`, so the model, its constraints, its indexes, its
+> access paths and its transaction behavior are unchanged here. API design v2
+> was read in full and changes nothing this design consumes; the front matter
+> records that assessment against both v2 artifacts rather than restating it.
+> The version bump carries a single correction, under Schema initialization:
+> design review v1 `d-3` found this document's driver-adapter finding stale,
+> because `@prisma/adapter-pg` was approved and added by commit `0339b4a` while
+> this stage was not running. The review addressed `d-3` to
+> `IMPLEMENTATION_PLANNING` on the assumption that `DB_DESIGN` would not re-run.
+> It has re-run, and this stage owns the artifact, so the false statement is
+> corrected at its source instead of being left for a downstream reader to
+> reconcile against a different document.
 
 ## Model
 
@@ -265,25 +307,28 @@ the variable directly and AD-7's wording is narrowed to `src/`, or it imports th
 validated value from the configuration boundary. `IMPLEMENTATION_PLANNING` should
 settle it deliberately rather than let the lint's silence decide.
 
-**2. `PrismaClient` now requires a driver adapter, which is a dependency this
-project does not have.** In the installed `@prisma/client` 7.10.0,
+**2. `PrismaClient` requires a driver adapter, and that dependency is approved
+and installed.** In the installed `@prisma/client` 7.10.0,
 `PrismaClientOptions` is a union of exactly two shapes: one requiring
 `accelerateUrl` (Prisma Accelerate) and one requiring `adapter`, documented in
 the type as *"A driver adapter is **required** unless you connect to your
 database through Prisma Accelerate."* The official PostgreSQL adapter is
-`@prisma/adapter-pg`, which together with its `pg` driver is **not in
-`package.json` and not in `node_modules`** — verified.
+`@prisma/adapter-pg`, and `src/lib/prisma.ts` has no working form without it.
 
-This is a **new dependency, and SC-6 and SR-10 make that an explicit human
-decision**, as does `AGENTS.md`'s Prohibited list. It is not a persistence-model
-question and it does not change anything above — the model, constraints, indexes
-and access paths are unaffected, which is why this stage returns `PASS` rather
-than holding. But `src/lib/prisma.ts` cannot construct a working client without
-it, so US-001 cannot be implemented until the decision is taken. The natural
-place is the implementation plan and the `HUMAN_PLAN_APPROVAL` gate, which is a
-human gate before any code is written; the risk of leaving it later than that is
-that it surfaces mid-implementation, where it would block a stage that has no
-authority to resolve it.
+**Revision 1 of this document recorded that adapter as absent and as an
+unapproved new dependency requiring a decision at `HUMAN_PLAN_APPROVAL`. That is
+no longer true**, and design review v1 `d-3` is the finding that says so. Commit
+`0339b4a` (author `KShust`, 2026-09-02) adds `@prisma/adapter-pg` pinned to
+`7.10.0` and records the SC-6 approval and its reason in the commit message.
+Re-verified during this re-run: `@prisma/adapter-pg` 7.10.0 is declared in
+`package.json` and installed, and its `pg` 8.23.0 driver arrives transitively.
+
+Two consequences follow. **`IMPLEMENTATION_PLANNING` must not carry the adapter
+to `HUMAN_PLAN_APPROVAL` as an open decision** — it cites `0339b4a` as the
+approval that already exists. And nothing above changes either way: the model,
+its constraints, its indexes and its access paths never depended on which driver
+carries the connection, which is why this correction is a documentary one and
+the persistence design is unrevised.
 
 **PC-1 itself should be revisited by whoever owns that decision.** It says the
 connection string "comes from `DATABASE_URL` … parsed and validated in
@@ -335,13 +380,17 @@ is that the email is not part of it.
 
 ## Findings recorded for later stages
 
-Neither blocks `DESIGN_REVIEW`, and neither is an entry in
+None of these blocks `DESIGN_REVIEW`, and none is an entry in
 `docs/decisions/US-001-open-decisions.md` (all twelve of which are `RESOLVED` at
-v7). Both are stated in full above and are summarized here so they are not lost.
+v7). Each is stated in full above and summarized here so it is not lost.
 
-1. **`@prisma/adapter-pg` and `pg` are required and are not approved
-   dependencies.** SC-6 / SR-10 make this a human decision; `HUMAN_PLAN_APPROVAL`
-   is the gate for it. US-001 cannot be implemented without it.
+1. **`@prisma/adapter-pg` is approved and installed — no longer a finding, and
+   recorded only so the revision-1 version of it is not acted on.** Revision 1
+   called it an unapproved dependency needing a decision at
+   `HUMAN_PLAN_APPROVAL`; commit `0339b4a` approved and added it under SC-6
+   before this revision, as design review v1 `d-3` observed.
+   `IMPLEMENTATION_PLANNING` cites that commit instead of carrying the question
+   to the gate.
 2. **`prisma.config.ts` must read `DATABASE_URL`**, which the letter of AD-7
    assigns to `src/config/env.ts` alone while the lint rule enforcing it covers
    only `src/**`. `IMPLEMENTATION_PLANNING` should choose a resolution

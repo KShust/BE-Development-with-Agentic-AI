@@ -4,23 +4,23 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: DB_DESIGN
-previous_stage: API_DESIGN
-last_completed_stage: API_DESIGN
+current_stage: DESIGN_REVIEW
+previous_stage: DB_DESIGN
+last_completed_stage: DB_DESIGN
 status: IN_PROGRESS
 attempt: 2
-last_invoked_skill: openapi-designer
+last_invoked_skill: db-designer
 last_result:
   verdict: PASS
-  stage: API_DESIGN
-  recorded_at: 2026-09-02T17:43:14Z
+  stage: DB_DESIGN
+  recorded_at: 2026-09-02T20:44:41Z
 last_artifacts:
-  - type: api_design
-    path: docs/designs/api/US-001-api-design.md
+  - type: database_design
+    path: docs/designs/database/US-001-db-design.md
     version: 2
-  - type: openapi
-    path: docs/designs/api/US-001-openapi.yaml
-    version: 2
+  - type: entity_model
+    path: docs/designs/database/US-001-entity-model.md
+    version: 1
 pending_human_gate: null
 blocking_issues: []
 non_blocking_findings:
@@ -54,7 +54,12 @@ non_blocking_findings:
   - "Implementation consequence recorded by API_DESIGN v2, the second of its kind and equally easy to miss: the default Zod flattening leaves details.fieldErrors empty for BOTH the unknown-property 400 and the non-object-body 400, because both issues carry a root path. The implementation must map the unrecognized-keys issue onto the offending property name AND the root-level invalid_type issue onto the two required field keys. minProperties: 1 is what makes either omission visible to a contract test rather than only to a careful reader; a Zod record does not emit that keyword on its own, so it must be supplied as .openapi() metadata or the generated document silently re-admits the response d-2 was raised about."
   - "HARNESS CHANGE made during this transition, approved by the user in-session on 2026-09-02: scripts/validate-harness.py check_input_versions now grades stale-input severity by where the stale artifact's owning stage sits relative to current_stage in stage_order. At or after current_stage the re-run is still ahead and it warns; before current_stage the workflow has moved past the stage that owed the re-run and it stays an ERROR. The rebuttal path (assessed_version + assessment) is unchanged and still fully checked. Reason: a loop-back makes every downstream artifact stale in the same instant, and neither remedy is reachable inside the turn that creates it - the orchestrator runs one stage per invocation and no Skill may write an artifact another Skill owns - so the previous rule failed every loop-back at the moment it succeeded, with no repair available to the turn being failed. docs/workflow/artifact-schema.md gained a When the re-run is still ahead section stating the same rule, so the document and the validator agree. The three US-001 stale-input findings are now warnings and validate:harness exits 0."
 
+  - "DB_DESIGN re-ran at attempt 2 against API design v2 and returned PASS. The persistence model is unchanged - not carried forward by default, but re-read against v2 and found not to consume any of it: v2's two changes are both in the error model (the 429's TooManyRequestsError carrier, and the non-object-JSON-body case routed to VALIDATION_FAILED with minProperties: 1 on FieldErrors), a 429 never reaches a repository, the non-object body fails at the HTTP boundary, and RegisterRequest/RegisterResponse are byte-identical between v1 and v2. The judgement is recorded where it is auditable and reviewable: assessed_version: 2 plus a specific assessment on both API inputs of both DB artifacts, per artifact-schema.md. entity_model stays at version 1 because its content did not change; db_design moves to version 2 because of the correction below."
+  - "DB_DESIGN v2 CORRECTED THE STALE ADAPTER CLAIM AT ITS SOURCE, which changes what IMPLEMENTATION_PLANNING has to do. Revision 1 of the database design stated that @prisma/adapter-pg and pg were absent from package.json and node_modules and that the new dependency needed a human decision at HUMAN_PLAN_APPROVAL. Design review v1 d-3 found that stale and addressed the correction to IMPLEMENTATION_PLANNING, on the stated assumption that DB_DESIGN would not re-run. It did re-run, and it owns the artifact, so the false statement is now fixed in the design itself rather than living only in a review that a later reader has to reconcile against it. Re-verified during the re-run: @prisma/adapter-pg 7.10.0 is declared in package.json and installed, pg 8.23.0 arrives transitively, and commit 0339b4a (author KShust, 2026-09-02) records the SC-6 approval and its reason. IMPLEMENTATION_PLANNING cites 0339b4a; it does not carry the adapter to the gate."
+  - "The db-design's two other companion findings are unchanged and still due, both for IMPLEMENTATION_PLANNING: prisma.config.ts must read DATABASE_URL while AD-7 assigns process.env to src/config/env.ts alone and the lint rule enforcing it covers only src/**, so the resolution should be chosen deliberately rather than left to the lint's silence; and PC-1 predates Prisma 7 and describes neither the adapter object nor the separate migration config file, which is a convention amendment nobody has made. The third, the deliberately unspecified CHECK (email = lower(btrim(email))), is still offered to DESIGN_REVIEW to disagree with."
+  - "Expected at DESIGN_REVIEW, not a defect: design review v1 now records stale inputs on two counts - api_design v1 (now v2) and database_design v1 (now v2). DESIGN_REVIEW is the stage the workflow has just entered, so both are warnings under the artifact-schema.md re-run-is-still-ahead rule and validate:harness exits 0. They clear when design-reviewer re-runs, which is the next transition. The re-run reviews API design v2 in full; the persistence design it already accepted changed only in the adapter paragraph its own d-3 asked for."
+
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-02T17:43:14Z
+updated_at: 2026-09-02T20:44:41Z
 completed_at: null
 archived_at: null

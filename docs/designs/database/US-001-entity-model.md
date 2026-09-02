@@ -4,14 +4,39 @@ story: US-001
 version: 1
 status: DRAFT
 created_at: 2026-09-02T16:44:33Z
-updated_at: 2026-09-02T16:44:33Z
+updated_at: 2026-09-02T18:32:49Z
 produced_by: db-designer
 inputs:
   - path: docs/specifications/US-001-spec.md
     version: 14
   - path: docs/designs/api/US-001-api-design.md
     version: 1
+    assessed_version: 2
+    assessment: >
+      Revision 2 of the API design answers design review d-1 and d-2, both of
+      which live entirely in the error model: a carrier for the 429 (the rate
+      limiter's handler raising a TooManyRequestsError under the AD-6 amendment
+      in commit fa21f62), and the assignment of a valid-JSON non-object body to
+      the VALIDATION_FAILED branch, with a minimum of one property added to the
+      FieldErrors schema. This document maps entities and attributes to the
+      request and response objects and to the business language; it maps
+      nothing to an error body, and no error response names a persisted
+      attribute. Both request and response objects are byte identical between
+      v1 and v2, so every row of the mapping table below still cites an
+      unchanged declaration. Content is therefore unrevised and the version is
+      unchanged.
   - path: docs/designs/api/US-001-openapi.yaml
+    version: 1
+    assessed_version: 2
+    assessment: >
+      The whole v1-to-v2 diff of the contract is the info version, two response
+      descriptions (400 and 429), and a minimum of one property on the
+      FieldErrors schema. The RegisterRequest and RegisterResponse objects,
+      which are the only schemas this document maps attributes to, are
+      identical in both versions - including the email bound, the uuid format
+      on id, the constant role and the date-time createdAt that four rows of
+      the mapping table depend on.
+  - path: docs/reviews/designs/US-001-design-review.md
     version: 1
   - path: docs/decisions/US-001-open-decisions.md
     version: 7
