@@ -96,6 +96,66 @@ def current_stage(work: Path) -> str:
     return found.group(1)
 
 
+GATE = "HUMAN_SPEC_APPROVAL"
+
+# A populated gate object in the shape state-schema.md prescribes: a block
+# mapping, not an inline scalar. The cases below write it out explicitly instead
+# of editing whatever the live tree holds, so they keep testing the same thing
+# whether or not the active Story happens to be sitting at a gate today.
+GATE_BLOCK = """
+  stage: HUMAN_SPEC_APPROVAL
+  status: {status}
+  required_artifacts:
+    - type: specification
+      path: docs/specifications/US-001-spec.md
+      version: 1
+  automated_verdict: PASS
+  blocking_findings: []
+  requested_at: 2026-08-31T00:00:00Z
+  decided_at: null
+  decided_by: null
+  comment: null"""
+
+
+def at_stage(work: Path, stage: str) -> None:
+    """Move the scratch tree's workflow state to `stage`, from wherever it is."""
+    was = current_stage(work)
+    if was != stage:
+        edit(
+            work,
+            "docs/workflow/workflow-state.yaml",
+            f"current_stage: {was}",
+            f"current_stage: {stage}",
+        )
+
+
+def set_gate(work: Path, body: str) -> None:
+    """Replace the whole `pending_human_gate` value, whatever shape it is in.
+
+    The value may be an inline scalar (`null`) or an indented block, and a case
+    must be able to swap either for either - so this drops the key's own line
+    together with every indented line beneath it, then writes `body`.
+    """
+    path = work / "docs" / "workflow" / "workflow-state.yaml"
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    out: list[str] = []
+    index = 0
+    replaced = False
+    while index < len(lines):
+        if lines[index].startswith("pending_human_gate:"):
+            out.append("pending_human_gate:" + body + "\n")
+            replaced = True
+            index += 1
+            while index < len(lines) and lines[index].startswith((" ", "\t")):
+                index += 1
+            continue
+        out.append(lines[index])
+        index += 1
+    if not replaced:
+        raise AssertionError("workflow-state.yaml has no pending_human_gate key")
+    path.write_text("".join(out), encoding="utf-8", newline="\n")
+
+
 SPEC = "docs/specifications/US-001-spec.md"
 REVIEW = "docs/reviews/specifications/US-001-spec-review.md"
 
@@ -246,12 +306,25 @@ def _(work):
 
 @case("human gate with no pending_human_gate", "pending_human_gate is null")
 def _(work):
-    edit(
-        work,
-        "docs/workflow/workflow-state.yaml",
-        f"current_stage: {current_stage(work)}",
-        "current_stage: HUMAN_SPEC_APPROVAL",
-    )
+    at_stage(work, GATE)
+    set_gate(work, " null")
+
+
+# Both cases below require the validator to SEE a block-form pending_human_gate.
+# Read as absent - which is what a top-level-scalars-only parse does to a nested
+# mapping - neither check can fire, and each silently stops testing anything.
+# That is the defect they exist to catch: it made the gate checks unsatisfiable
+# at every human gate, and went unnoticed until the workflow first reached one.
+@case("pending_human_gate carries a status that is not a gate status", "pending_human_gate.status")
+def _(work):
+    at_stage(work, GATE)
+    set_gate(work, GATE_BLOCK.format(status="AWAITING"))
+
+
+@case("pending_human_gate is set at a stage that is not a human gate", "is not a human gate")
+def _(work):
+    at_stage(work, "SPEC_REVIEW")
+    set_gate(work, GATE_BLOCK.format(status="PENDING"))
 
 
 @case(

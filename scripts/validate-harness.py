@@ -314,6 +314,30 @@ def read_scalars(text: str) -> dict[str, str]:
     return out
 
 
+def gate_is_present(state_text: str) -> bool:
+    """Whether workflow-state.yaml carries a `pending_human_gate` object.
+
+    `read_scalars` ignores nesting, so the block-form mapping that
+    `state-schema.md` prescribes reaches it as the empty string and would read
+    as absent - which would make the human-gate check below unsatisfiable at
+    every gate. Both spellings are accepted here: a value on the key's own line
+    (`null`, or an inline mapping), or an indented block beneath it.
+    """
+    lines = state_text.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("pending_human_gate:"):
+            continue
+        inline = line.partition(":")[2].split("#")[0].strip()
+        if inline:
+            return inline != "null"
+        for following in lines[index + 1 :]:
+            if not following.strip():
+                continue
+            return following.startswith((" ", "\t"))
+        return False
+    return False
+
+
 # --------------------------------------------------------------------------
 # Checks
 # --------------------------------------------------------------------------
@@ -521,7 +545,7 @@ def check_state(stage_order, stages, artifacts) -> None:
         error(f"workflow-state.yaml: attempt {state.get('attempt')!r} is not an integer")
 
     is_gate = stages.get(stage, {}).get("type") == "human_gate"
-    has_gate = state.get("pending_human_gate") not in (None, "null", "")
+    has_gate = gate_is_present(state_text)
     if is_gate and not has_gate:
         error(f"workflow-state.yaml: current_stage {stage} is a human gate but pending_human_gate is null")
     if has_gate and not is_gate:
