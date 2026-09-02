@@ -82,14 +82,34 @@ Do not write a Specification.
 
 ## Re-running on an existing report
 
-`CLARIFICATION` is not a loop-back target, but it is re-run on Story
-re-activation, so both artifacts may already exist. The mechanics are the
-Re-entry rule in `docs/workflow/stage-map.yaml`. Specific to this stage:
+Both artifacts may already exist. `CLARIFICATION` is re-run on Story
+re-activation, and it is the `new_open_decision` loop-back target of
+`SPECIFICATION` and `SPEC_REVIEW` (`docs/workflow/stage-map.yaml`). The
+mechanics are the Re-entry rule in that file. Specific to this stage:
 
 - Keep every still-unanswered Open Decision, with its `id` unchanged, so
   downstream references stay valid.
 - Mark a decision resolved only when an approved artifact or a recorded human
   decision answers it, and name that source in the entry.
+
+### Arriving through `new_open_decision`
+
+`spec-writer` or `spec-verifier` found a question the registry does not hold.
+Because this Skill is the only permitted writer of `open_decisions`, this
+loop-back is the **only** legitimate route by which the registry is repaired: a
+decision added to it by hand, outside a recorded stage run, leaves no history
+event and no version bump, and downstream `inputs[]` then record a version that
+no run produced. Specific to this entry:
+
+- The incoming `blocking_issues` name the question, not its answer. Record it as
+  a new entry with the next free `id` and `status: OPEN`. Do not answer it, and
+  do not narrow it to fit the requirement that surfaced it.
+- Revise both artifacts together: `open_decisions` and `clarification_report`
+  each take `version` + 1, and the report's reference list covers the new entry.
+- The flow returns to `SPECIFICATION`, which re-reads the registry and records
+  the new version in its own `inputs[]`. Every artifact downstream of the
+  registry that recorded the old version is assessed under the staleness
+  contract in `docs/workflow/artifact-schema.md`.
 
 # Validation Checklist
 

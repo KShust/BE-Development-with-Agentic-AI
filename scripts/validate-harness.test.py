@@ -17,6 +17,7 @@ Exit: 0 = every case was detected, 1 = at least one slipped through.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -77,6 +78,35 @@ def edit(work: Path, rel: str, old: str, new: str) -> None:
     if old not in text:
         raise AssertionError(f"anchor no longer present in {rel}: {old[:60]!r}")
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
+
+
+def event(timestamp: str, source: str, target: str, **overrides) -> dict:
+    """One history event with the schema's required fields filled in."""
+    body = {
+        "timestamp": timestamp,
+        "story": "US-001",
+        "from_stage": source,
+        "to_stage": target,
+        "skill": "us-clarifier",
+        "verdict": "PASS",
+        "artifacts": [],
+        "attempt": 1,
+    }
+    body.update(overrides)
+    return body
+
+
+def append_history(work: Path, *events: dict) -> None:
+    """Append events to the scratch tree's history.jsonl.
+
+    The baseline log holds a single activation event, so every history case
+    builds the sequence it needs. This appends rather than rewrites, which is
+    also the only thing state-schema.md allows the real log.
+    """
+    path = work / "docs" / "workflow" / "history.jsonl"
+    body = path.read_text(encoding="utf-8").rstrip("\n")
+    lines = [body] + [json.dumps(e) for e in events]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 # --------------------------------------------------------------------------
@@ -167,6 +197,147 @@ def _(work):
 def _(work):
     (work / "docs" / "plans" / "US-001-implementation-plan.md").write_text(
         "# injected: never produced by IMPLEMENTATION_PLANNING\n", encoding="utf-8"
+    )
+
+
+# --------------------------------------------------------------------------
+# Artifact timestamps and the staleness contract (artifact-schema.md)
+# --------------------------------------------------------------------------
+
+
+@case("artifact updated_at is ahead of the clock", "updated_at 2099-01-01T00:00:00Z is in the future")
+def _(work):
+    edit(
+        work,
+        "docs/specifications/US-001-spec.md",
+        "updated_at: 2026-08-31T00:00:00Z",
+        "updated_at: 2099-01-01T00:00:00Z",
+    )
+
+
+@case("artifact updated_at does not parse", "not a parsable ISO-8601 timestamp")
+def _(work):
+    edit(
+        work,
+        "docs/specifications/US-001-spec.md",
+        "updated_at: 2026-08-31T00:00:00Z",
+        "updated_at: last Tuesday",
+    )
+
+
+@case("downstream records a version the upstream has moved past", "stale input")
+def _(work):
+    # The review consumed the specification at version 1; the specification is
+    # now at version 2 and the review carries no assessment.
+    edit(
+        work,
+        "docs/specifications/US-001-spec.md",
+        "artifact_type: specification\nstory: US-001\nversion: 1",
+        "artifact_type: specification\nstory: US-001\nversion: 2",
+    )
+
+
+@case("stale input rebutted with an assessment is accepted", "harness OK", warning=True)
+def _(work):
+    edit(
+        work,
+        "docs/specifications/US-001-spec.md",
+        "artifact_type: specification\nstory: US-001\nversion: 1",
+        "artifact_type: specification\nstory: US-001\nversion: 2",
+    )
+    edit(
+        work,
+        "docs/reviews/specifications/US-001-spec-review.md",
+        "  - path: docs/specifications/US-001-spec.md\n    version: 1\n",
+        "  - path: docs/specifications/US-001-spec.md\n"
+        "    version: 1\n"
+        "    assessed_version: 2\n"
+        "    assessment: >\n"
+        "      v2 rewrote the status banner only. This review consumes the\n"
+        "      requirements and the traceability matrix, neither of which moved.\n",
+    )
+
+
+@case("rebuttal names a version the upstream has already left behind", "the rebuttal is void")
+def _(work):
+    edit(
+        work,
+        "docs/specifications/US-001-spec.md",
+        "artifact_type: specification\nstory: US-001\nversion: 1",
+        "artifact_type: specification\nstory: US-001\nversion: 3",
+    )
+    edit(
+        work,
+        "docs/reviews/specifications/US-001-spec-review.md",
+        "  - path: docs/specifications/US-001-spec.md\n    version: 1\n",
+        "  - path: docs/specifications/US-001-spec.md\n"
+        "    version: 1\n"
+        "    assessed_version: 2\n"
+        "    assessment: >\n"
+        "      v2 rewrote the status banner only.\n",
+    )
+
+
+@case("rebuttal with no reason recorded", "with no assessment")
+def _(work):
+    edit(
+        work,
+        "docs/specifications/US-001-spec.md",
+        "artifact_type: specification\nstory: US-001\nversion: 1",
+        "artifact_type: specification\nstory: US-001\nversion: 2",
+    )
+    edit(
+        work,
+        "docs/reviews/specifications/US-001-spec-review.md",
+        "  - path: docs/specifications/US-001-spec.md\n    version: 1\n",
+        "  - path: docs/specifications/US-001-spec.md\n"
+        "    version: 1\n"
+        "    assessed_version: 2\n",
+    )
+
+
+# --------------------------------------------------------------------------
+# history.jsonl integrity (state-schema.md, stage-map.yaml)
+#
+# These warn rather than fail: the log is append-only, so a violation already
+# recorded has no repair, and failing on one would wedge the harness with
+# falsifying the record as the only way out. The cases assert the warning is
+# raised and the run still exits clean.
+# --------------------------------------------------------------------------
+
+
+@case("history timestamp goes backwards", "cannot go backwards in time", warning=True)
+def _(work):
+    append_history(
+        work,
+        event("2026-08-31T01:00:00Z", "CLARIFICATION", "SPECIFICATION"),
+        event("2026-08-30T12:00:00Z", "SPECIFICATION", "SPEC_REVIEW", skill="spec-writer"),
+    )
+
+
+@case("history timestamp is ahead of the clock", "is in the future", warning=True)
+def _(work):
+    append_history(work, event("2099-01-01T00:00:00Z", "CLARIFICATION", "SPECIFICATION"))
+
+
+@case("history records a transition stage-map.yaml does not define", "is not a transition", warning=True)
+def _(work):
+    append_history(work, event("2026-08-31T01:00:00Z", "CLARIFICATION", "PR_REVIEW"))
+
+
+@case("a transition event was never appended", "was never appended", warning=True)
+def _(work):
+    # CLARIFICATION -> SPECIFICATION, then a jump that starts at SPEC_REVIEW:
+    # the SPECIFICATION -> SPEC_REVIEW event is missing from the chain.
+    append_history(
+        work,
+        event("2026-08-31T01:00:00Z", "CLARIFICATION", "SPECIFICATION"),
+        event(
+            "2026-08-31T02:00:00Z",
+            "SPEC_REVIEW",
+            "HUMAN_SPEC_APPROVAL",
+            skill="spec-verifier",
+        ),
     )
 
 

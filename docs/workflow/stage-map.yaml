@@ -107,6 +107,8 @@ stages:
     inputs: [story, clarification_report, open_decisions]
     outputs: [specification]
     next: SPEC_REVIEW
+    loop_back:
+      new_open_decision: CLARIFICATION
 
   SPEC_REVIEW:
     type: automated_skill
@@ -116,6 +118,7 @@ stages:
     next: HUMAN_SPEC_APPROVAL
     loop_back:
       changes_required: SPECIFICATION
+      new_open_decision: CLARIFICATION
 
   HUMAN_SPEC_APPROVAL:
     type: human_gate
@@ -353,6 +356,19 @@ stages:
 # Loop-back rule: a Skill may name a loop_back key only if that key exists under
 # the current stage's `loop_back` map in this file. The orchestrator rejects an
 # unknown key and holds the stage as BLOCKED pending human decision.
+#
+# `new_open_decision` (SPECIFICATION, SPEC_REVIEW) -> CLARIFICATION: the only
+# route by which the decision registry is repaired. `open_decisions` is owned by
+# us-clarifier (artifact-paths.yaml); spec-writer and spec-verifier may not
+# write it. When either stage finds a decision the registry does not hold - a
+# question the Specification cannot answer, or one a review discovers - the
+# stage returns CHANGES_REQUIRED with this key instead of editing the registry
+# out of band or inventing an answer. CLARIFICATION then re-runs under the
+# Re-entry rule below: us-clarifier revises `open_decisions` and
+# `clarification_report` in place (version + 1), and the flow returns through
+# SPECIFICATION, whose own inputs must then record the new registry version.
+# Every such repair is therefore a recorded stage run with a history event,
+# never a hand edit.
 #
 # Re-entry rule: a stage reached through a `loop_back` target or a human gate's
 # `on_reject` is a REVISION, not a fresh run. Its owning Skill revises the
