@@ -1,0 +1,450 @@
+# Approved HTTP contract for US-001 (Customer Registration).
+#
+# This is the per-Story design artifact (api-conventions.md AC-10): the contract
+# the implementation must satisfy. The runtime document at docs/api/openapi.json
+# is GENERATED from the Zod schemas and must match this one semantically once
+# implemented; neither file is hand-edited to make the other agree.
+#
+# Traceability keys are the OpenAPI exception in docs/workflow/artifact-schema.md;
+# the paired docs/designs/api/US-001-api-design.md carries the full front matter
+# and is the traceability anchor for this file.
+
+openapi: 3.1.0
+
+info:
+  title: Customer Portal API
+  version: '1'
+  description: >-
+    Contract for US-001, Customer Registration. Scope is the single operation
+    below. No other path, schema, or security scheme is defined by this Story.
+
+x-story: US-001
+x-source-specification: docs/specifications/US-001-spec.md
+x-source-specification-version: 14
+x-produced-by: openapi-designer
+
+# No `servers` entry: the deployment topology is an Open Decision (AGENTS.md),
+# and operations carry the full `/api/v1` prefix (AC-1), matching what
+# scripts/generate-openapi.ts emits.
+
+tags:
+  - name: auth
+    description: >-
+      Session and account-creation actions under /api/v1/auth. Verb paths here
+      are the deliberate exception AC-3 permits.
+
+paths:
+  /api/v1/auth/register:
+    post:
+      operationId: registerCustomer
+      tags: [auth]
+      summary: Register a new customer account
+      description: >-
+        Creates one customer account from an email address and a password, and
+        returns the created resource (FR-1, FR-2, AC-001).
+
+
+        **Public.** No authentication is required or accepted. This operation is
+        the registration entry listed as public in security-conventions.md SC-4;
+        the document defines no security scheme, because this Story issues no
+        token and sets no cookie (BR-4).
+
+
+        **Rate limited.** The request passes the `/api/v1/auth` rate limiter
+        before the handler runs; exceeding the register threshold decided in
+        security-conventions.md SC-3 returns 429 and creates no account
+        (FR-13, EC-7). The threshold is defined there and is deliberately not
+        repeated in this contract.
+
+
+        **Normalization.** The submitted email is trimmed of leading and
+        trailing whitespace and lowercased before it is format-checked, before
+        the uniqueness comparison, and before storage; the normalized value is
+        what is persisted and what is returned (BR-2, VR-4, EC-1, EC-2). The
+        254-character bound applies to the normalized value (VR-3).
+
+
+        **Authentication is not performed here.** A successful registration
+        issues no access token and sets no refresh cookie; the account is
+        immediately usable for the sign-in flow US-002 introduces, with no
+        confirmation or activation step in between (FR-17, AC-001).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: >-
+            The account was created. The body is the non-sensitive projection of
+            the created record and carries exactly four fields (FR-5, FR-11,
+            AC-001, AC-006). No `Location` header is returned: the only
+            canonical URL for the account is /api/v1/users/me, which no Story
+            serves until US-003 (AC-4, "Registration — decided"). Adding it
+            later is not a breaking change.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: >-
+            The request body was rejected at the HTTP boundary before any
+            service or repository work (FR-8, FR-9, AD-5). Two distinct codes
+            share this status, and a client tells them apart by `error.code`:
+
+
+            - `VALIDATION_FAILED` — a field failed the schema: a missing or
+              non-string `email` or `password` (VR-1, VR-5, EC-5), an email that
+              is not a valid format or exceeds 254 characters (VR-2, VR-3,
+              EC-8), a password that fails the policy (VR-6, EC-6), or an
+              unknown body property (VR-9). `details.fieldErrors` names every
+              field that failed (VR-11).
+
+            - `MALFORMED_JSON` — the body is not parseable JSON. No field can be
+              named, so no `details` object is returned.
+
+
+            A bodyless POST reaches this status as `VALIDATION_FAILED` with
+            `email` and `password` both missing, not as a 415 (Error Handling,
+            AC-2).
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+                  - $ref: '#/components/schemas/MalformedJsonErrorResponse'
+        '409':
+          description: >-
+            An account already exists for the normalized email. No account is
+            created and the submitted password is not hashed (FR-6, FR-7,
+            AC-002). The response is identical whether the duplicate was caught
+            by the service check or by the database uniqueness constraint under
+            a race, so the two paths are indistinguishable to a client (BR-1,
+            EC-3). Disclosing the duplicate is the decided behavior for
+            registration, not an enumeration defect (business-rules.md BR-009,
+            BR-3).
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictErrorResponse'
+        '413':
+          description: >-
+            The request body exceeds the 10kb limit decided in
+            security-conventions.md SC-5 (VR-10, FR-14). Raised by the JSON body
+            parser, which is the only component that sees the body size as it
+            streams, and carried to the error middleware as a
+            `PayloadTooLargeError` (AD-6, FR-21).
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayloadTooLargeErrorResponse'
+        '415':
+          description: >-
+            The request carries a body whose `Content-Type` is missing or is not
+            `application/json` (VR-10, AC-2). Scoped to a request with a body:
+            the boundary checks the header itself, because the JSON body parser
+            is content-type-conditional and would skip such a request rather
+            than reject it (FR-22). Carried by an
+            `UnsupportedMediaTypeError` (AD-6, FR-21).
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnsupportedMediaTypeErrorResponse'
+        '429':
+          description: >-
+            The caller exceeded the register rate limit (FR-13, SR-8, EC-7,
+            SC-3). Returned before the handler runs: no account is created and
+            no password is hashed.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitErrorResponse'
+        '500':
+          description: >-
+            An unmapped error. The body is generic and diagnostics stay
+            server-side; nothing in security-conventions.md SC-9's list reaches
+            it (AD-6, SR-6).
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalErrorResponse'
+
+components:
+
+  headers:
+    XRequestId:
+      description: >-
+        The request id correlating this response with every log line for the
+        request (AC-9, FR-15, NFR-010). Mirrors the inbound `X-Request-Id`
+        header when one was present and trusted.
+      required: true
+      schema:
+        type: string
+
+  schemas:
+
+    RegisterRequest:
+      type: object
+      title: RegisterRequest
+      description: >-
+        The registration request body. Exactly two properties are accepted; an
+        unknown property is rejected rather than stripped (VR-9, AD-5, AC-5).
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+          description: >-
+            The customer's email address. Trimmed and lowercased before it is
+            validated, compared, or stored; the bounds and the format check
+            apply to that normalized value (VR-2, VR-3, VR-4, BR-2). 254 is the
+            longest address SMTP can carry and is the same bound the persisted
+            column declares, so an over-long address fails as a 400 rather than
+            as a database error (VR-3, PC-4).
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+          description: >-
+            The plaintext password, accepted only on this request. It is never
+            persisted, logged, returned, or echoed in an error body (SR-3,
+            AC-005, AC-006).
+
+
+            The policy is the one decided in security-conventions.md SC-1 and is
+            not restated as a value here beyond the two lengths: 12 to 128
+            characters counted in Unicode code points, containing at least
+            three of the four classes (lowercase letter, uppercase letter,
+            digit, anything else). Every printable character is accepted,
+            spaces and non-ASCII included — the classes decide whether a
+            password passes, they never restrict the alphabet. The
+            composition rule is not expressible as a JSON Schema keyword and is
+            deliberately not encoded as a regular expression; SC-1 is
+            authoritative and the Zod schema is its single expression (VR-6,
+            VR-8). The breached-password check is out of scope (VR-7).
+
+    RegisterResponse:
+      type: object
+      title: RegisterResponse
+      description: >-
+        The created account, as an explicit response DTO rather than a
+        persistence model (AD-4, SR-5). It carries exactly these four fields;
+        `password` and `password_hash` are absent and are returned by no
+        endpoint (FR-11, SR-4, AC-006).
+      additionalProperties: false
+      required: [id, email, role, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: >-
+            The account identifier. A string, never a number, so a client cannot
+            infer ordering or volume from it (AC-11, PC-3).
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: >-
+            The stored, normalized email — trimmed and lowercased. It may differ
+            from the submitted value in case and surrounding whitespace
+            (BR-2, VR-4).
+        role:
+          type: string
+          const: CUSTOMER
+          description: >-
+            The account's role. `CUSTOMER` is the default and the only role
+            currently defined (FR-3, SC-2, BR-006). This Story adds no other
+            role and no permission model.
+        createdAt:
+          type: string
+          format: date-time
+          description: >-
+            When the account was created, ISO 8601 with an explicit UTC offset
+            (AC-11, PC-6).
+
+    FieldErrors:
+      type: object
+      title: FieldErrors
+      description: >-
+        Per-field validation messages, keyed by the field that failed (AC-6,
+        VR-11). For an unknown body property the key is the offending property
+        name, so that VR-11's "name the field that failed" holds for a property
+        the schema does not declare. No key and no message ever echoes the
+        submitted password (VR-11, SC-1, SC-9).
+      additionalProperties:
+        type: array
+        minItems: 1
+        items:
+          type: string
+
+    ValidationErrorResponse:
+      type: object
+      title: ValidationErrorResponse
+      description: >-
+        A 400 raised by boundary validation. `details.fieldErrors` is always
+        present and never empty (VR-11).
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+              const: VALIDATION_FAILED
+            message:
+              type: string
+              description: >-
+                Safe for a client to display. It never contains anything in
+                security-conventions.md SC-9's list and never echoes the
+                submitted password (SR-3, SR-6).
+            details:
+              type: object
+              additionalProperties: false
+              required: [fieldErrors]
+              properties:
+                fieldErrors:
+                  $ref: '#/components/schemas/FieldErrors'
+
+    MalformedJsonErrorResponse:
+      type: object
+      title: MalformedJsonErrorResponse
+      description: >-
+        A 400 raised when the body is not parseable JSON. No field can be named,
+        so `details` is omitted rather than sent empty (AC-6, AC-11's
+        omit-rather-than-null rule).
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: MALFORMED_JSON
+            message:
+              type: string
+
+    ConflictErrorResponse:
+      type: object
+      title: ConflictErrorResponse
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: EMAIL_ALREADY_REGISTERED
+              description: >-
+                Decided in api-conventions.md AC-6 and business-rules.md BR-009;
+                it is not assigned by this design and must not be genericized.
+            message:
+              type: string
+              description: >-
+                States that the email is already registered (FR-6). It carries
+                no Prisma error text, error code, or constraint name (SR-6,
+                SC-9).
+
+    PayloadTooLargeErrorResponse:
+      type: object
+      title: PayloadTooLargeErrorResponse
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: PAYLOAD_TOO_LARGE
+            message:
+              type: string
+
+    UnsupportedMediaTypeErrorResponse:
+      type: object
+      title: UnsupportedMediaTypeErrorResponse
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: UNSUPPORTED_MEDIA_TYPE
+            message:
+              type: string
+
+    RateLimitErrorResponse:
+      type: object
+      title: RateLimitErrorResponse
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: RATE_LIMIT_EXCEEDED
+            message:
+              type: string
+
+    InternalErrorResponse:
+      type: object
+      title: InternalErrorResponse
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: INTERNAL_ERROR
+            message:
+              type: string
+              description: >-
+                Generic. Diagnostics stay server-side (SC-9, AD-6).
