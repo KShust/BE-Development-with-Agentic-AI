@@ -4,20 +4,23 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: API_DESIGN
-previous_stage: DESIGN_REVIEW
-last_completed_stage: DB_DESIGN
+current_stage: DB_DESIGN
+previous_stage: API_DESIGN
+last_completed_stage: API_DESIGN
 status: IN_PROGRESS
 attempt: 2
-last_invoked_skill: design-reviewer
+last_invoked_skill: openapi-designer
 last_result:
-  verdict: CHANGES_REQUIRED
-  stage: DESIGN_REVIEW
-  recorded_at: 2026-09-02T17:22:54Z
+  verdict: PASS
+  stage: API_DESIGN
+  recorded_at: 2026-09-02T17:43:14Z
 last_artifacts:
-  - type: design_review
-    path: docs/reviews/designs/US-001-design-review.md
-    version: 1
+  - type: api_design
+    path: docs/designs/api/US-001-api-design.md
+    version: 2
+  - type: openapi
+    path: docs/designs/api/US-001-openapi.yaml
+    version: 2
 pending_human_gate: null
 blocking_issues: []
 non_blocking_findings:
@@ -45,7 +48,13 @@ non_blocking_findings:
   - "d-3 (Minor, database) CORRECTS THE EARLIER ADAPTER ENTRY IN THIS LIST: the DB_DESIGN finding that @prisma/adapter-pg is an unapproved new dependency requiring a decision at HUMAN_PLAN_APPROVAL is stale. Commit 0339b4a (author KShust) adds @prisma/adapter-pg pinned to 7.10.0 and records the SC-6 approval in its message; the review verified the package is installed. IMPLEMENTATION_PLANNING must NOT carry the adapter to HUMAN_PLAN_APPROVAL as an open decision - it should cite 0339b4a as the approval. The design was deliberately not revised for this; the review is the artifact IMPACT_ANALYSIS and IMPLEMENTATION_PLANNING read alongside it. The design's two companion notes (prisma.config.ts and the AD-7 process.env question; PC-1 predating Prisma 7) stand unchanged and are still due."
   - "d-4 and d-5 (Minor, API), no correction required. d-4: RegisterRequest.email carries format: email, minLength: 1 and maxLength: 254 while BR-2/VR-4 normalize before validation, so the declared constraints describe the normalized value - recorded because AC-10 generates the contract from Zod, and a pipeline that transforms before validating may not render as a plain string with format and bounds, so the generated docs/api/openapi.json may not match this contract's shape for that field. IMPLEMENTATION_VERIFICATION should compare semantically. d-5: minLength: 1 on email is redundant under format: email; noted only so a later reader does not take it for a rule with a requirement behind it."
 
+  - "API_DESIGN v2 discharged design review d-1 by recording a human decision rather than making one: commit fa21f62 (author KShust, 2026-09-02) amends architecture.md AD-6 to add TooManyRequestsError, extends the handler mapping with 429, and names US-001 as the Story that creates the class. The carrier is the rate limiter's own handler calling next(new TooManyRequestsError(...)), which keeps the error body constructed in the single place AD-6 makes responsible. NOTHING IS ESCALATED TO HUMAN_PLAN_APPROVAL for this - the design review's instruction to escalate was conditional on the AD-6 amendment still being needed, and it has been made. IMPLEMENTATION_PLANNING carries the class, not the question."
+  - "New finding raised by API_DESIGN v2, for whoever revises the Specification: FR-21 states US-001 creates four DomainError subclasses and lists them; AD-6 after fa21f62 names five, TooManyRequestsError included. FR-21 restates AD-6 rather than deciding it, so the convention is canonical and the Specification is stale on this point. It is APPROVED and past its human gate and only spec-writer may revise it, so this is recorded, not repaired. Non-blocking: the authoritative class list is AD-6's and the contract declares the 429 the fifth class carries. The same consequence is recorded in fa21f62's own commit message."
+  - "API_DESIGN v2 discharged design review d-2: a body that is valid JSON but not an object (a JSON array) is answered as VALIDATION_FAILED with details.fieldErrors naming email and password, both as not supplied - the same answer the contract already gives for a body of {} and for a bodyless POST. MALFORMED_JSON was rejected because the body parsed; an empty fieldErrors and a formErrors member were rejected as breaking VR-11 and widening AC-6. The contract gained minProperties: 1 on FieldErrors so the schema now enforces what the prose said. Verified on the installed libraries: body-parser 2.3.0 strict mode accepts only a first character of { or [, and zod 4.5.4 reports the array as one invalid_type issue at the object root."
+  - "Implementation consequence recorded by API_DESIGN v2, the second of its kind and equally easy to miss: the default Zod flattening leaves details.fieldErrors empty for BOTH the unknown-property 400 and the non-object-body 400, because both issues carry a root path. The implementation must map the unrecognized-keys issue onto the offending property name AND the root-level invalid_type issue onto the two required field keys. minProperties: 1 is what makes either omission visible to a contract test rather than only to a careful reader; a Zod record does not emit that keyword on its own, so it must be supplied as .openapi() metadata or the generated document silently re-admits the response d-2 was raised about."
+  - "HARNESS CHANGE made during this transition, approved by the user in-session on 2026-09-02: scripts/validate-harness.py check_input_versions now grades stale-input severity by where the stale artifact's owning stage sits relative to current_stage in stage_order. At or after current_stage the re-run is still ahead and it warns; before current_stage the workflow has moved past the stage that owed the re-run and it stays an ERROR. The rebuttal path (assessed_version + assessment) is unchanged and still fully checked. Reason: a loop-back makes every downstream artifact stale in the same instant, and neither remedy is reachable inside the turn that creates it - the orchestrator runs one stage per invocation and no Skill may write an artifact another Skill owns - so the previous rule failed every loop-back at the moment it succeeded, with no repair available to the turn being failed. docs/workflow/artifact-schema.md gained a When the re-run is still ahead section stating the same rule, so the document and the validator agree. The three US-001 stale-input findings are now warnings and validate:harness exits 0."
+
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-02T17:22:54Z
+updated_at: 2026-09-02T17:43:14Z
 completed_at: null
 archived_at: null

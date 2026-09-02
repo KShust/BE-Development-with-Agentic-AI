@@ -13,7 +13,7 @@ openapi: 3.1.0
 
 info:
   title: Customer Portal API
-  version: '1'
+  version: '2'
   description: >-
     Contract for US-001, Customer Registration. Scope is the single operation
     below. No other path, schema, or security scheme is defined by this Story.
@@ -111,6 +111,17 @@ paths:
             A bodyless POST reaches this status as `VALIDATION_FAILED` with
             `email` and `password` both missing, not as a 415 (Error Handling,
             AC-2).
+
+
+            A body that is valid JSON but is not an object — a JSON array —
+            reaches this status the same way: as `VALIDATION_FAILED` with
+            `email` and `password` both named in `details.fieldErrors`, because
+            a non-object body supplies neither field. A JSON string, number,
+            boolean or null never reaches validation at all: the JSON parser
+            runs in its default strict mode and accepts only a body whose first
+            character is `{` or `[`, so those are rejected as `MALFORMED_JSON`.
+            `details.fieldErrors` is never empty on a `VALIDATION_FAILED`
+            (VR-11).
           headers:
             X-Request-Id:
               $ref: '#/components/headers/XRequestId'
@@ -170,7 +181,11 @@ paths:
           description: >-
             The caller exceeded the register rate limit (FR-13, SR-8, EC-7,
             SC-3). Returned before the handler runs: no account is created and
-            no password is hashed.
+            no password is hashed. Carried by a `TooManyRequestsError` (AD-6),
+            which the rate limiter's own handler raises so that this body is
+            built in the centralized error middleware like every other; the
+            limiter's default handler writes a plain-text payload and never
+            delegates, which would not satisfy AC-6.
           headers:
             X-Request-Id:
               $ref: '#/components/headers/XRequestId'
@@ -297,6 +312,13 @@ components:
         name, so that VR-11's "name the field that failed" holds for a property
         the schema does not declare. No key and no message ever echoes the
         submitted password (VR-11, SC-1, SC-9).
+
+
+        `minProperties: 1` is VR-11 expressed as a constraint rather than as
+        prose: a `VALIDATION_FAILED` that names no field is not a valid response
+        under this contract, and every case that reaches this status has at
+        least one field to name.
+      minProperties: 1
       additionalProperties:
         type: array
         minItems: 1

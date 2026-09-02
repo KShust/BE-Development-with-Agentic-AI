@@ -1,16 +1,18 @@
 ---
 artifact_type: api_design
 story: US-001
-version: 1
+version: 2
 status: DRAFT
 created_at: 2026-09-02T16:23:21Z
-updated_at: 2026-09-02T16:23:21Z
+updated_at: 2026-09-02T17:41:30Z
 produced_by: openapi-designer
 inputs:
   - path: docs/specifications/US-001-spec.md
     version: 14
   - path: docs/reviews/specifications/US-001-spec-review.md
     version: 11
+  - path: docs/reviews/designs/US-001-design-review.md
+    version: 1
   - path: docs/decisions/US-001-open-decisions.md
     version: 7
   - path: docs/stories/US-001-register-customer.md
@@ -23,6 +25,18 @@ supersedes: null
 Paired contract: `docs/designs/api/US-001-openapi.yaml`. That file is the
 contract; this document is its traceability anchor and carries the reasoning
 behind every choice it makes.
+
+> **Revision 2 — discharges the two Major findings of design review v1.**
+> `DESIGN_REVIEW` returned `CHANGES_REQUIRED` with loop-back key
+> `changes_required_api`, and named this document as the only artifact that had
+> to change: the database design and entity model were accepted as they stand
+> and are carried forward unrevised. Both findings are answered below by naming
+> an owner, which is what the review asked for — `d-1` under "What produces the
+> 429 body", `d-2` under "A body that is valid JSON but is not an object". The
+> contract needed no structural change for either; it gained one constraint
+> (`minProperties: 1` on `FieldErrors`), which encodes a rule this document
+> already stated in prose and the review found the schema did not enforce.
+> `info.version` moves to `'2'` with this artifact, per `artifact-schema.md`.
 
 ## Scope
 
@@ -48,11 +62,11 @@ here:
 
 It does not choose file names, middleware ordering, or internal structure.
 Where the Specification deferred a placement to `IMPLEMENTATION_PLANNING`
-(FR-22, FR-23, FR-24), this document leaves it there. The one place it names a
-layer is the error-translation ownership under Error Model, because the
-Specification's own Error Handling table asserts the translation without an
-owner and the review raised it — and even there it names a layer and a
-responsibility, not a filename.
+(FR-22, FR-23, FR-24), this document leaves it there. Where it does name a
+layer, it is because a declared response had no component able to produce it and
+a review said so: the body-parser error translation (specification review v11
+`m-1`) and the `429` carrier (design review v1 `d-1`), both under Error Model.
+In each case it names a layer and an obligation, never a filename.
 
 ## Operation
 
@@ -173,7 +187,7 @@ invented during implementation is a finding.
 | `409` | `EMAIL_ALREADY_REGISTERED` | **Already decided** — not assigned here | AC-6; BR-009 |
 | `413` | `PAYLOAD_TOO_LARGE` | Body over the `10kb` limit | VR-10; SC-5 |
 | `415` | `UNSUPPORTED_MEDIA_TYPE` | Request with a body and a missing or non-JSON `Content-Type` | VR-10; AC-2 |
-| `429` | `RATE_LIMIT_EXCEEDED` | Register rate limit exceeded | FR-13; SC-3 |
+| `429` | `RATE_LIMIT_EXCEEDED` | Register rate limit exceeded | FR-13; SC-3; AD-6 |
 | `500` | `INTERNAL_ERROR` | Anything unmapped | AD-6; SC-9 |
 
 **Why one code for five validation cases.** The Specification's Error Handling
@@ -204,6 +218,14 @@ contract expresses the `400` as a `oneOf` over the two, and the `const` on
 `code` is what makes them mutually exclusive — a `oneOf` whose branches both
 matched would be invalid schema, not merely untidy.
 
+"Never empty" is now a keyword rather than a sentence: `FieldErrors` carries
+`minProperties: 1`. Design review v1 `d-2` observed that the schema
+accepted `{"fieldErrors": {}}` while this document said it never occurs, and a
+disagreement between the contract and its prose is the one a schema check cannot
+catch. VR-11 is the requirement behind the keyword; every case that reaches
+`VALIDATION_FAILED` has at least one field to name, including the two the next
+section is about.
+
 ### `fieldErrors` keys, including the unknown-property case
 
 AC-6 fixes the shape as `{ "fieldErrors": { "<field>": ["<message>"] } }`, and
@@ -227,6 +249,92 @@ requirement asks for.
 
 No key and no message ever echoes the submitted password (VR-11, SC-1, SC-9).
 Naming the rule that failed is not returning the value that failed it.
+
+### A body that is valid JSON but is not an object — closing review d-1's sibling, d-2
+
+Design review v1 `d-2` found a `400` that no declared branch covered. The JSON
+body parser runs in its default strict mode, which accepts a body whose first
+non-whitespace character is `{` **or `[`** — verified in the installed
+`body-parser` 2.3.0, `lib/types/json.js`: any other first character is a strict
+violation and never reaches validation. So a JSON array parses successfully,
+arrives at the object schema, and fails it at the object root with no field to
+name, leaving `details.fieldErrors` empty and VR-11 unsatisfied.
+
+**The branch is `VALIDATION_FAILED`, and `details.fieldErrors` names `email` and
+`password`, both as not supplied.** A body that is not an object supplies
+neither required field, so naming both is not a workaround — it is the accurate
+answer to "which field failed", and it is the same answer the contract already
+gives for a body of `{}` and for a bodyless POST. Those three requests differ in
+what the client sent and not in what the server is missing, and a client
+correcting any of them takes the identical action.
+
+The alternatives were rejected on grounds this document has already used:
+
+- **`MALFORMED_JSON`** describes a body that did not parse. This one parsed. A
+  client told its JSON was malformed would look for a syntax error that is not
+  there.
+- **An empty `fieldErrors`, or a `formErrors` member beside it.** The first
+  breaks VR-11 and is now rejected by the contract itself (`minProperties: 1`).
+  The second widens AC-6's error body for one case — rejected above for the
+  unknown-property case, and the reasoning is unchanged here.
+
+**Implementation consequence, the same shape as the unknown-property one.** Zod
+reports the non-object body as a single `invalid_type` issue whose path is the
+object root (verified on the installed `zod` 4.5.4: `[]` yields
+`{code: "invalid_type", expected: "object", path: []}`), so the default
+flattening puts it in form-level errors and leaves `fieldErrors` empty. The
+implementation must map that root-level issue onto the two required field keys,
+just as it must map the unrecognized-keys issue onto the offending property
+name. Neither mapping is optional decoration: without them the response fails
+its own contract, and `minProperties: 1` is what makes that failure visible to a
+contract test instead of only to a careful reader.
+
+### What produces the 429 body — closing design review d-1
+
+Design review v1 `d-1` found that the contract declared a `429` with
+`RATE_LIMIT_EXCEEDED` while no approved artifact gave any component the power to
+produce that body. `express-rate-limit`'s default handler sets the status, sends
+its own plain-text payload and never calls `next` — verified in the installed
+8.7.0 — so a limiter left at its defaults answers with a body that is not AC-6's
+and that the centralized error middleware never sees. The status would be right
+and the body wrong: caught by an integration test asserting AC-6, invisible to
+an eyeball.
+
+The review offered two resolutions and required this stage to pick one. **It is
+resolution (a), and it was decided by a human, not by this document:** commit
+`fa21f62` (author `KShust`, 2026-09-02) amends `architecture.md` AD-6 to add
+`TooManyRequestsError` to the domain-error taxonomy, extends the handler mapping
+with `429`, and names US-001 as the Story that creates the class. The commit
+message records the approval and the reasoning. The amendment was the part
+`API_DESIGN` may not make on its own; with it made, the design records the
+consequence.
+
+**The carrier is the rate limiter's own handler, which calls
+`next(new TooManyRequestsError(...))`** and hands the response to the
+centralized error middleware, where every other error body in this contract is
+built. Two things follow, and both are contract-relevant:
+
+- A custom handler is required either way. The default one never delegates, so
+  "leave the limiter at its defaults" was never among the options; what the
+  taxonomy decides is whether the custom handler *constructs a body* or *raises
+  an error*. It raises one, which keeps AD-6's single construction site intact.
+- Nothing is escalated to `HUMAN_PLAN_APPROVAL` for this. The review's
+  instruction to record a finding for the gate was conditional on the amendment
+  still being needed; it has been made. `IMPLEMENTATION_PLANNING` should carry
+  the class, not the question.
+
+The contract is unchanged in structure: the `429`, its code and its body were
+already declared correctly. The `429` description now names the carrier, the way
+the `413` and `415` descriptions already named theirs.
+
+**One consequence this stage records and does not repair.** Specification FR-21
+states that US-001 creates four `DomainError` subclasses and lists them; AD-6
+now says five, `TooManyRequestsError` included. FR-21 restates AD-6 rather than
+deciding it, so the convention is canonical and the Specification is stale on
+this point. It is an `APPROVED` artifact past its human gate and only
+`spec-writer` may revise it, so this is a finding carried forward, not an edit.
+The gap is documentary: the class list an implementer needs is in AD-6, which is
+authoritative, and the contract declares the `429` it carries.
 
 ### Who translates the body-parser's errors — closing review v11 m-1
 
@@ -309,15 +417,28 @@ in `src/modules/auth/auth.schemas.ts` registered into `src/lib/openapi.ts`:
   mode, not the default;
 - `writeOnly` on `password` and the `const` values on `role` and each `code`,
   which are carried through `.openapi()` metadata;
+- `minProperties: 1` on `FieldErrors`. A Zod record does not emit that keyword
+  on its own, so it has to be supplied as `.openapi()` metadata — and it is the
+  one keyword in this contract whose absence from the generated document would
+  silently re-admit the response `d-2` was raised about;
 - the `X-Request-Id` response header, as a registered component header.
 
 `npm run openapi:check` compares the generated document against the committed
 `docs/api/openapi.json`; it does **not** compare either against this file.
 Checking the generated document against this contract is a semantic review,
 owned by `design-reviewer` here and by `implementation-verifier` after the code
-exists. `info.version` differs by design: this artifact carries `'1'`, mirroring
+exists. `info.version` differs by design: this artifact carries `'2'`, mirroring
 its own version per `artifact-schema.md`, while the generated document carries
 the `package.json` version.
+
+Design review v1 `d-4` adds a second field to compare semantically rather than
+literally. `RegisterRequest.email` declares `format: email` with bounds while
+BR-2/VR-4 normalize before validating, so a Zod pipeline that transforms first
+may not render as a plain `string` with `format` and bounds at all. The two
+documents can describe identical behavior and still not match key for key there.
+`IMPLEMENTATION_VERIFICATION` should expect it; `npm run openapi:check` will not
+see it, because it compares the generated document against the committed
+`docs/api/openapi.json` and neither against this file.
 
 ## Questions recorded for later stages
 
@@ -337,12 +458,55 @@ are recorded so a later stage does not have to rediscover them.
    `IMPLEMENTATION_PLANNING` should settle which way; either is defensible, and
    adding a declared header later is additive.
 
+
+   `d-1` narrows this question without answering it. The limiter now needs a
+   custom `handler` in any case, so the same configuration object that raises
+   the `TooManyRequestsError` is where `standardHeaders` / `legacyHeaders` get
+   set — one decision, one place, rather than two. What the headers should be is
+   still unowned by any requirement, and this contract still declares none.
+
 2. **No `Location` header, and the `/api/v1/users/me` that does not exist yet.**
    Carried from AC-4 as decided, and recorded here so US-003 sees it: once
    `/api/v1/users/me` is served, adding `Location` to this `201` is available
    and additive. Nothing in this Story depends on it.
 
 ## Findings carried forward
+
+### Design review v1 (the loop-back that produced this revision)
+
+- **d-1** (Major, API — the `429` had no carrier) — **addressed** under "What
+  produces the 429 body": resolution (a), the limiter's handler raising a
+  `TooManyRequestsError`, decided by the human amendment to AD-6 in `fa21f62`.
+  **Nothing is escalated to `HUMAN_PLAN_APPROVAL`** — the review's instruction to
+  escalate was conditional on that amendment still being needed.
+- **d-2** (Major, API — a non-object JSON body produced an uncoverable `400`) —
+  **addressed** under "A body that is valid JSON but is not an object": the
+  branch is `VALIDATION_FAILED`, `details.fieldErrors` names `email` and
+  `password`, and `FieldErrors` gained `minProperties: 1` so the schema and the
+  prose now say the same thing.
+- **d-3** (Minor, database — the stale driver-adapter finding) — **not this
+  stage's**, and correctly so: it is addressed to `IMPLEMENTATION_PLANNING`,
+  which must cite `0339b4a` as the approval rather than carry the adapter to the
+  gate as an open decision. The database design and entity model are carried
+  forward unrevised, as the review directed.
+- **d-4** (Minor, API — `email` constraints describe the normalized value) — no
+  correction required, and none made. Recorded under "Contract-source
+  obligations", where its real consequence lives: the generated document may not
+  match this contract key-for-key on that field, so the comparison is semantic.
+- **d-5** (Minor, API — `minLength: 1` redundant beside `format: email`) — no
+  correction required, and none made. The keyword stays: removing it would be a
+  contract edit with no requirement behind it, which is the same objection that
+  keeps it from being read as a rule.
+
+**New finding raised by this revision, for whoever revises the Specification.**
+FR-21 lists the four `DomainError` subclasses US-001 creates; AD-6, amended in
+`fa21f62`, now names five. FR-21 restates AD-6 rather than deciding it, so the
+Specification is stale on this point. It is `APPROVED` and past its human gate,
+and only `spec-writer` may revise it — recorded, not repaired. Non-blocking: the
+authoritative list is AD-6's, and the contract declares the `429` the fifth class
+carries.
+
+### Specification review v11
 
 Review v11's four Minors were accepted at the gate as design inputs. Their
 status after this stage:
