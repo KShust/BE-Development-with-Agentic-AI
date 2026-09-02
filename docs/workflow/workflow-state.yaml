@@ -4,22 +4,19 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: DESIGN_REVIEW
-previous_stage: DB_DESIGN
+current_stage: API_DESIGN
+previous_stage: DESIGN_REVIEW
 last_completed_stage: DB_DESIGN
 status: IN_PROGRESS
-attempt: 1
-last_invoked_skill: db-designer
+attempt: 2
+last_invoked_skill: design-reviewer
 last_result:
-  verdict: PASS
-  stage: DB_DESIGN
-  recorded_at: 2026-09-02T16:47:10Z
+  verdict: CHANGES_REQUIRED
+  stage: DESIGN_REVIEW
+  recorded_at: 2026-09-02T17:22:54Z
 last_artifacts:
-  - type: database_design
-    path: docs/designs/database/US-001-db-design.md
-    version: 1
-  - type: entity_model
-    path: docs/designs/database/US-001-entity-model.md
+  - type: design_review
+    path: docs/reviews/designs/US-001-design-review.md
     version: 1
 pending_human_gate: null
 blocking_issues: []
@@ -42,7 +39,13 @@ non_blocking_findings:
   - "DB_DESIGN finding for IMPLEMENTATION_PLANNING: Prisma 7 no longer accepts url in the datasource block - url = env('DATABASE_URL') is validation error P1012 on 7.10.0, and prisma migrate status then reports that datasource.url is required in the Prisma config file (both verified by running the commands). US-001 must therefore add a prisma.config.ts carrying the migration connection URL, and that file has to read DATABASE_URL from the environment. AGENTS.md states flatly that process.env is read only in src/config/env.ts (AD-7), while the eslint rule enforcing it is scoped to files: [src/**/*.ts], so a root-level prisma.config.ts would pass npm run lint while contradicting the prose - the same position scripts/ already occupies. Either the config file reads the variable and AD-7 is narrowed to src/, or it imports the validated value; the plan should choose deliberately rather than let the lint silence decide."
   - "DB_DESIGN finding, recorded not specified: a database-level CHECK (email = lower(btrim(email))) would stop a future writer inserting an unnormalized address past the boundary, and PC-4 says a business invariant expressible as a database constraint is expressed as one. It is not in the design because no requirement asks for it and Prisma cannot express a CHECK in schema.prisma, so it would be raw SQL in the migration sitting outside what Prisma reconciles against. DESIGN_REVIEW can disagree with the judgement rather than have to notice the question."
   - "Recorded by DB_DESIGN for whoever takes the adapter decision: persistence-conventions.md PC-1 predates Prisma 7. What it says about DATABASE_URL and about one PrismaClient in src/lib/prisma.ts is still true; what it does not describe is that the client now needs an adapter object and that migrations read their URL from a separate config file. Amending a convention document is not a design stage decision, so the gap is recorded rather than closed."
+  - "DESIGN_REVIEW v1 returned CHANGES_REQUIRED with loop_back key changes_required_api. The database design and entity model were accepted as they stand and MUST be carried forward unrevised - API_DESIGN is the only stage re-entered. Two Major findings, both in the API design, both dischargeable by adding a paragraph; the OpenAPI contract needs no structural change for either."
+  - "d-1 (Major, API) - the 429 has no carrier and its default body violates AC-6. The contract declares RATE_LIMIT_EXCEEDED but no approved artifact gives any component the power to produce that body: express-rate-limit answers with its own default payload, and AD-6 defines the centralized error middleware as mapping only ZodError and DomainError. API_DESIGN must name what produces the 429 body. The review notes resolution (a) would need an amendment to architecture.md AD-6, which is a convention change and a human decision escalated at HUMAN_PLAN_APPROVAL; resolution (b) escalates nothing. This interacts with the undeclared RateLimit-* / Retry-After header question already recorded for IMPLEMENTATION_PLANNING, since both concern the limiter response."
+  - "d-2 (Major, API) - a syntactically valid but non-object JSON body (an array, a string, a number) yields a 400 that no declared branch covers, and the FieldErrors schema sets no minProperties, so an empty fieldErrors validates against the contract while the prose says fieldErrors is always present and never empty. API_DESIGN must state which declared 400 branch covers this case and how its details is populated, and make schema and prose agree."
+  - "d-3 (Minor, database) CORRECTS THE EARLIER ADAPTER ENTRY IN THIS LIST: the DB_DESIGN finding that @prisma/adapter-pg is an unapproved new dependency requiring a decision at HUMAN_PLAN_APPROVAL is stale. Commit 0339b4a (author KShust) adds @prisma/adapter-pg pinned to 7.10.0 and records the SC-6 approval in its message; the review verified the package is installed. IMPLEMENTATION_PLANNING must NOT carry the adapter to HUMAN_PLAN_APPROVAL as an open decision - it should cite 0339b4a as the approval. The design was deliberately not revised for this; the review is the artifact IMPACT_ANALYSIS and IMPLEMENTATION_PLANNING read alongside it. The design's two companion notes (prisma.config.ts and the AD-7 process.env question; PC-1 predating Prisma 7) stand unchanged and are still due."
+  - "d-4 and d-5 (Minor, API), no correction required. d-4: RegisterRequest.email carries format: email, minLength: 1 and maxLength: 254 while BR-2/VR-4 normalize before validation, so the declared constraints describe the normalized value - recorded because AC-10 generates the contract from Zod, and a pipeline that transforms before validating may not render as a plain string with format and bounds, so the generated docs/api/openapi.json may not match this contract's shape for that field. IMPLEMENTATION_VERIFICATION should compare semantically. d-5: minLength: 1 on email is redundant under format: email; noted only so a later reader does not take it for a rule with a requirement behind it."
+
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-02T16:47:10Z
+updated_at: 2026-09-02T17:22:54Z
 completed_at: null
 archived_at: null
