@@ -417,6 +417,23 @@ def _(work):
     # another loop-back, which needs a CHANGES_REQUIRED verdict - and that would
     # have re-run the design anyway. Warn, so the condition stays visible
     # without demanding a repair that a PASS makes unreachable.
+    #
+    # Pin current_stage rather than inheriting wherever the live Story sits.
+    # The bump staleses every consumer of the review, and they are not all
+    # backward: artifacts owned by stages after DESIGN_REVIEW cite it on a
+    # forward edge, which is a hard error once their stage is behind
+    # current_stage. DESIGN_REVIEW is the one position where both kinds warn -
+    # late enough that API_DESIGN and DB_DESIGN are behind it and reach the
+    # backward branch this case names, early enough that every forward consumer
+    # grades as pending. It also cannot age: the review is owned by
+    # DESIGN_REVIEW, so every future consumer is either earlier (backward) or
+    # later (pending), and no new artifact can turn this case red.
+    edit(
+        work,
+        "docs/workflow/workflow-state.yaml",
+        f"current_stage: {current_stage(work)}",
+        "current_stage: DESIGN_REVIEW",
+    )
     bump_version(work, "docs/reviews/designs/US-001-design-review.md")
 
 
