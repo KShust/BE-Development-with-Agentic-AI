@@ -281,6 +281,21 @@ prose entry to judge that is a human call, not a migration. So the entries land
 as `RAISED`, and triaging them is a separate pass. Say in the run summary that
 `LEGACY:*` ids are unreviewed, so the count is not mistaken for a real open set.
 
+**Unless that pass already happened.** If `docs/decisions/{story_id}-findings-triage.md`
+exists with `status: APPROVED`, apply it instead of the mechanical default: file
+each finding it lists with the id, severity and status it gives, and drop every
+free-text entry it does not list. Do not re-judge it — it is a recorded human
+decision, and the mechanical path exists only for a Story that has not had one.
+Cite the document in the run summary so the resulting counts can be checked
+against it.
+
+Why the triage is a human pass and not a smarter conversion: on US-001 three of
+the forty-nine entries were misfiled in ways only execution revealed. One
+recorded an obligation in the present tense as though it were done, and would
+have been closed while the work was still outstanding; two described harness
+gaps that a later branch had already fixed, and would have stayed open. No
+reading of the prose distinguishes those cases from the rest.
+
 Preserve all prior history. Never rewrite `history.jsonl`.
 
 Do not claim a transition occurred unless the state file was successfully
