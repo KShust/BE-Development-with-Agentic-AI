@@ -4,35 +4,43 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: PLAN_REVIEW
-previous_stage: IMPLEMENTATION_PLANNING
+current_stage: IMPLEMENTATION_PLANNING
+previous_stage: PLAN_REVIEW
 last_completed_stage: IMPLEMENTATION_PLANNING
 status: IN_PROGRESS
-attempt: 2
-last_invoked_skill: implementation-planner
+attempt: 3
+last_invoked_skill: plan-reviewer
 last_result:
-  verdict: PASS
-  stage: IMPLEMENTATION_PLANNING
-  recorded_at: 2026-09-03T07:03:30Z
+  verdict: CHANGES_REQUIRED
+  stage: PLAN_REVIEW
+  recorded_at: 2026-09-03T07:22:16Z
 last_artifacts:
-  - type: implementation_plan
-    path: docs/plans/US-001-implementation-plan.md
+  - type: plan_review
+    path: docs/reviews/plans/US-001-plan-review.md
     version: 2
 pending_human_gate: null
 blocking_issues: []
-# Derived from history.jsonl: every id whose latest event says RAISED.
-# The revision closed three (PLAN_REVIEW:p-2, p-3, p-5), so the set moves
-# 13 -> 10. attempt is 2 because it counts entries into PLAN_REVIEW and of that
-# stage only - the IMPLEMENTATION_PLANNING entry of 2026-09-03T01:48Z, plus this
-# one.
+# attempt is 3 because it counts entries into IMPLEMENTATION_PLANNING and of
+# that stage only: IMPACT_ANALYSIS -> IMPLEMENTATION_PLANNING (2026-09-02T21:55Z),
+# the HUMAN_PLAN_APPROVAL rejection (2026-09-03T06:44Z), and this loop-back.
 #
-# PLAN_REVIEW:p-1 stays RAISED and its summary below still ends "and does not
-# list itself as an Open Question", which plan v2 has now done. A finding's
+# Derived from history.jsonl: every id whose latest event says RAISED.
+# PLAN_REVIEW v2 raised two (p-6 MAJOR, p-7 MINOR) and closed none, so the set
+# moves 10 -> 12. It did NOT re-close p-2, p-3 and p-5: those were closed by the
+# IMPLEMENTATION_PLANNING run of 2026-09-03T07:03:30Z and the review verified
+# those closures rather than emitting duplicate events for them.
+#
+# p-6 is MAJOR and is the reason this stage returned CHANGES_REQUIRED. It is
+# listed here and not in blocking_issues because blocking_issues is non-empty
+# only when status is BLOCKED (state-schema.md); this list is the open-findings
+# set at every severity, not a list of things that do not matter.
+#
+# PLAN_REVIEW:p-1 stays RAISED. Plan v2 discharged its documentary half - D-4
+# now cites all three convention lines and is Open Question 3 - but a finding's
 # summary is fixed by the event that raised it and is never edited in place
 # (state-schema.md, Finding lifecycle). What keeps p-1 open is its substance:
-# the plan surfaces D-4 as Open Question 3 and plans both outcomes, but only
-# HUMAN_PLAN_APPROVAL can bless committing .env.test against the three
-# convention lines it crosses. It closes when that answer is recorded.
+# only HUMAN_PLAN_APPROVAL can bless committing .env.test against those lines,
+# and the gate has not been reached. It closes when that answer is recorded.
 #
 # DESIGN_REVIEW:e-1 is deliberately NOT closed. D-1 mitigates it for this Story
 # by declaring AD-6 authoritative, but nothing edits the Specification, which
@@ -52,6 +60,10 @@ non_blocking_findings:
     severity: MAJOR
     status: RAISED
     summary: "TEST_WRITING owes it: Zod leaves details.fieldErrors empty for both the unknown-property and the non-object-body 400, and minProperties must reach the generated document"
+  - id: "PLAN_REVIEW:p-6"
+    severity: MAJOR
+    status: RAISED
+    summary: "IMPLEMENTATION_PLANNING owes it: D-10's two projects include src/**/*.test.ts and tests/integration/**/*.test.ts, so tests/harness.test.ts is collected by neither and silently stops running with a green exit code"
   - id: "IMPACT_ANALYSIS:R-7"
     severity: MINOR
     status: RAISED
@@ -80,7 +92,11 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "human decision owes it: security-conventions.md SC-3 line 178 cites api-conventions.md AC-5 for the 429 error body, but AC-5 is Error status codes and AC-6 is Error body; SC-3 line 111 cites AC-6 correctly"
+  - id: "PLAN_REVIEW:p-7"
+    severity: MINOR
+    status: RAISED
+    summary: "IMPLEMENTATION_PLANNING owes it: Step 3 requires the test DATABASE_URL to fall back to .env.test but names no reader for it; no dotenv is declared, vite's loadEnv is only transitive, and Node v24.20.0's process.loadEnvFile is the zero-dependency mechanism"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T07:03:30Z
+updated_at: 2026-09-03T07:22:16Z
 completed_at: null
 archived_at: null
