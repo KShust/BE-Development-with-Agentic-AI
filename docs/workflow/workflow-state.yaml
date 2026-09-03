@@ -4,59 +4,48 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: IMPLEMENTATION_PLANNING
-previous_stage: HUMAN_PLAN_APPROVAL
-last_completed_stage: PLAN_REVIEW
+current_stage: PLAN_REVIEW
+previous_stage: IMPLEMENTATION_PLANNING
+last_completed_stage: IMPLEMENTATION_PLANNING
 status: IN_PROGRESS
 attempt: 4
-last_invoked_skill: null
+last_invoked_skill: implementation-planner
 last_result:
-  verdict: HUMAN_REJECTED
-  stage: HUMAN_PLAN_APPROVAL
-  recorded_at: 2026-09-03T12:00:14Z
+  verdict: PASS
+  stage: IMPLEMENTATION_PLANNING
+  recorded_at: 2026-09-03T12:37:02Z
 last_artifacts:
   - type: implementation_plan
     path: docs/plans/US-001-implementation-plan.md
-    version: 3
-  - type: plan_review
-    path: docs/reviews/plans/US-001-plan-review.md
-    version: 3
+    version: 4
 pending_human_gate: null
 blocking_issues: []
-# attempt is 4 because it counts entries into IMPLEMENTATION_PLANNING and of
-# that stage only (state-schema.md rule 4): 2026-09-02T21:55:20Z,
-# 2026-09-03T06:44:24Z, 2026-09-03T07:22:16Z and this one. A human gate's
-# on_reject continues the target stage's own series - it does not reset to 1,
-# and it does not carry over the 2 that HUMAN_PLAN_APPROVAL held.
+# attempt is 4 because it counts entries into PLAN_REVIEW and of that stage only
+# (state-schema.md rule 4): 2026-09-03T01:48:16Z, 07:03:30Z, 08:02:29Z and this
+# one. It is not reset by the forward move - PLAN_REVIEW has run before, so its
+# own series continues.
 #
 # Derived from history.jsonl: every id whose latest event says RAISED.
-# The HUMAN_REJECTED event raised and closed nothing, so the set is unchanged at
-# 11. That is not an oversight: a closure may only ride on a Skill result
-# envelope (state-schema.md, Finding lifecycle), a gate event has skill: null,
-# and no HUMAN_* event in this Story's log carries findings. There is no
-# sanctioned mechanism for a gate to close a finding, and none was invented.
+# The set stays at 11, but its membership changed: PLAN_REVIEW:p-1 CLOSED and
+# IMPLEMENTATION_PLANNING:R-P2 opened.
 #
-# FOUR OF THE ELEVEN ARE ALREADY SETTLED IN THE REPOSITORY and are open only in
-# the log. Commit b28766f (pushed) settled three of them and the rejection
-# comment settles the fourth:
-#   PLAN_REVIEW:p-1    - decided at this gate. The !.env.test negation is
-#                        DECLINED; the D-4 fallback is taken (CI supplies
-#                        DATABASE_URL as a workflow variable, .env.test stays
-#                        local-only). IMPLEMENTATION_PLANNING owes plan v4.
-#   PLAN_REVIEW:p-4    - RESOLVED in b28766f: security-conventions.md SC-3
-#                        line 178 now cites api-conventions.md AC-6.
-#   DB_DESIGN:PC-1     - RESOLVED in b28766f: PC-1 gained the Prisma 7 block
-#                        covering the driver adapter and prisma.config.ts.
-#   DESIGN_REVIEW:e-1  - ACCEPTED in b28766f: US-001-findings-triage.md v2,
-#                        section "Revision 2 - e-1 is accepted".
-# The HUMAN_REJECTED event's comment is the record until a stage closes them;
-# RECONCILIATION is the natural owner and should cite b28766f and that event.
-# Seven are genuinely open. Any agent reading eleven here: check the comment
-# before repairing anything already repaired.
+# p-1 is the finding the gate was owed, and this is where it could finally close:
+# a closure may only ride on a Skill result envelope (state-schema.md, Finding
+# lifecycle), so the HUMAN_REJECTED event could not carry it and this
+# implementation-planner envelope is the first one that could. The human answered
+# it on 2026-09-03T12:00:14Z (the !.env.test negation declined) and plan v4's D-4
+# now states that answer directly.
 #
-# The summaries below are fixed by the event that raised each finding and are
-# never edited in place, so p-1's still reads "plan D-4 commits .env.test" even
-# though this gate decided the opposite. The decision lives in the event.
+# R-P2 is new, not a re-raise of DB_DESIGN:PC-1. That one says PC-1 predates
+# Prisma 7; this one says PC-1 names .env.test as a deliverable that the D-4
+# decision means this Story deliberately does not ship. Same file, same human
+# owner, one amendment - but different substance, so a separate id.
+#
+# STILL OPEN ONLY IN THE LOG, settled in the repository by commit b28766f
+# (pushed): PLAN_REVIEW:p-4 (SC-3 line 178 now cites AC-6) and DESIGN_REVIEW:e-1
+# (accepted, US-001-findings-triage.md v2). Neither belongs to a stage that has
+# run since, so neither had an envelope to close it. RECONCILIATION is the
+# natural owner. Nine of the eleven are genuinely open; check before repairing.
 non_blocking_findings:
   - id: "SPECIFICATION:FR-18"
     severity: MAJOR
@@ -90,10 +79,6 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "TEST_WRITING precedes IMPLEMENTATION but the schema, migration and compose file arrive in plan steps 2-3, so the tests authored at TEST_WRITING cannot execute until then and must not be gated on a running suite"
-  - id: "PLAN_REVIEW:p-1"
-    severity: MINOR
-    status: RAISED
-    summary: "HUMAN_PLAN_APPROVAL owes it: plan D-4 commits .env.test and now cites AGENTS.md Prohibited, PC-10 and PC-1 and lists itself as Open Question 3, but the decision to cross those three convention lines belongs to the human at this gate"
   - id: "PLAN_REVIEW:p-4"
     severity: MINOR
     status: RAISED
@@ -102,7 +87,11 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "IMPLEMENTATION owes it: plan v3 D-10 declares sequence.shuffle on the unit project only and omits sequence from the shared root block, so the harness project and any future tests/*.test.ts inherit no file shuffle that NFR-005 relies on; nil effect today at one harness file"
+  - id: "IMPLEMENTATION_PLANNING:R-P2"
+    severity: MINOR
+    status: RAISED
+    summary: "human decision owes it: persistence-conventions.md PC-1 names .env.test literally as a deliverable of the implementing Story, and the D-4 decision means US-001 deliberately does not ship it, so PC-1 will describe an undelivered deliverable until reworded; belongs in the same PC-1 amendment as DB_DESIGN:PC-1"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T12:00:14Z
+updated_at: 2026-09-03T12:37:02Z
 completed_at: null
 archived_at: null

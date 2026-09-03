@@ -1,10 +1,10 @@
 ---
 artifact_type: implementation_plan
 story: US-001
-version: 3
+version: 4
 status: DRAFT
 created_at: 2026-09-03T01:43:14Z
-updated_at: 2026-09-03T08:02:29Z
+updated_at: 2026-09-03T12:35:48Z
 produced_by: implementation-planner
 inputs:
   - path: docs/stories/US-001-register-customer.md
@@ -28,15 +28,40 @@ inputs:
   - path: docs/impact-analysis/US-001-impact-analysis.md
     version: 2
   - path: docs/decisions/US-001-findings-triage.md
-    version: 1
-  - path: docs/reviews/plans/US-001-plan-review.md
     version: 2
+  - path: docs/reviews/plans/US-001-plan-review.md
+    version: 3
 supersedes: null
 ---
 
 # Implementation Plan: Customer Registration (US-001)
 
 ## Revision history
+
+**Revision 4 (2026-09-03).** `HUMAN_PLAN_APPROVAL` rejected revision 3 and routed
+the Story back to `IMPLEMENTATION_PLANNING` (`docs/workflow/history.jsonl`,
+2026-09-03T12:00:14Z, `human:KShust`). The rejection is not a quality finding —
+the automated verdict was `PASS` and stands. It is the answer to Open Question 3,
+and it goes against what revision 3 proposed: **the `!.env.test` negation is
+declined and the recorded fallback is taken.** `PLAN_REVIEW:p-1` is thereby
+answered. **No step boundary moves and no module file list changes**; what
+changes is which side of D-4 is committed, and two defects in revision 3's own
+text that the rejection identified.
+
+| # | Change | Discharges |
+|---|---|---|
+| 1 | D-4 is rewritten to the fallback: CI supplies `DATABASE_URL` as a workflow variable, `.env.test` stays local-only, and `.gitignore` is **not modified at all** | `PLAN_REVIEW:p-1` — **answered at the gate**, no longer open |
+| 2 | The `.gitignore` row **leaves** Files To Modify and Configuration Changes. Revision 3 claimed at D-4 that "either outcome leaves the file list … unchanged"; that was wrong, because `.gitignore:28` (`.env.*`) already ignores `.env.test`, so under the fallback there is nothing to change | the gate's second finding |
+| 3 | D-4's count of the conventions the declined resolution would have crossed is corrected from **three to five**: revision 3 named `AGENTS.md` Prohibited, PC-10 and PC-1 but missed `security-conventions.md` **SC-7** lines 295 and 299 entirely | the gate's third finding |
+| 4 | Front matter records `plan_review` at **v3**; revision 3 recorded v2, which `scripts/validate-harness.py` flags as a stale input | harness validator warning |
+
+**Carried forward still open**, unchanged by this revision: `PLAN_REVIEW:p-4`
+(`security-conventions.md` SC-3 line 178 — resolved in the repository by commit
+`b28766f`, which this plan does not own and does not edit), `DESIGN_REVIEW:e-1`
+(accepted at `b28766f`), and `PLAN_REVIEW:p-8` (D-10 omits `sequence` from the
+shared root block; owed to `IMPLEMENTATION`, nil effect at one harness file).
+Open Questions 1 and 2 stay recorded-not-blocking; **Question 3 is now answered
+and is retained only as the record of the decision.**
 
 **Revision 3 (2026-09-03).** `PLAN_REVIEW` revision 2 returned
 `CHANGES_REQUIRED` on `PLAN_REVIEW:p-6` (Major) and routed the Story back to
@@ -229,67 +254,81 @@ project(s)"), and the file would be invisible to `npm run typecheck`.
 creates the file. `tsconfig.json` (build) is deliberately untouched: `rootDir:
 src` correctly keeps tooling out of `dist/`.
 
-### D-4 — `.env.test` is committed via a targeted `!.env.test` negation
+### D-4 — `.env.test` stays local-only; CI supplies `DATABASE_URL` as a workflow variable
 
-Discharges `IMPACT_ANALYSIS:R-3` (MAJOR).
+Discharges `IMPACT_ANALYSIS:R-3` (MAJOR). **Decided by a human at
+`HUMAN_PLAN_APPROVAL` on 2026-09-03** (`docs/workflow/history.jsonl`,
+2026-09-03T12:00:14Z, `human:KShust`), which declined the `!.env.test` negation
+revision 3 proposed and selected the fallback that decision already recorded.
+This section is the decision as taken; the case revision 3 made for the other
+resolution is preserved at the end, as the archive of a question now closed.
 
 `git check-ignore -v .env.test` resolves to `.gitignore:28` (`.env.*`, with only
-`!.env.example` re-included), so the PC-1 setup as specified cannot be committed.
-The impact analysis named two defensible resolutions and required this plan to
-pick one and record it.
+`!.env.example` re-included). The impact analysis named two defensible
+resolutions and required this plan to pick one; the pick belongs to the gate,
+and the gate made it.
 
-**Resolution: `.gitignore` gains `!.env.test` immediately after the existing
-`!.env.example`, with a comment stating why, and `.env.test` is committed.**
+**Resolution: `.env.test` is created locally by each developer and is never
+committed. `.gitignore` is not modified — `.gitignore:28` already ignores the
+file, so the resolution requires no change there at all. CI does not read
+`.env.test`; the CI job supplies `DATABASE_URL` to the test step as a workflow
+environment variable pointing at its own `services: postgres` on host port
+5433.**
 
-**Three convention lines say the opposite, and all three are named here** — the
-omission `PLAN_REVIEW:p-1` raised was that revision 1 argued against only the
-first of them:
+**No convention line is crossed.** That is the whole point of the decision:
+`AGENTS.md` Prohibited, `persistence-conventions.md` PC-10 and PC-1, and
+`security-conventions.md` SC-7 all stay literally true, and this plan makes no
+claim on the human's authority to amend any of them.
+
+What the decision costs, recorded so `RECONCILIATION` does not read either as an
+oversight:
+
+1. **PC-1 names `.env.test` literally as a deliverable** of the implementing
+   Story, and under this resolution that deliverable is not in the repository.
+   What ships instead is everything needed to produce it: the compose file on
+   port 5433, the `db:test:up` / `db:test:down` scripts, and the reader in
+   `vitest.config.ts` that fails with the exact command to run when the file is
+   absent. Step 1's `.env.example` entry documents the variable.
+2. **The connection string lives in two places** — the developer's local
+   `.env.test` and the CI workflow's environment — so the two can drift. The
+   mitigation is that both point at the same fixed host port 5433, and a drift
+   surfaces immediately as a connection failure in the affected environment
+   rather than silently.
+
+**The resolution order does not change** (D-10): `process.env.DATABASE_URL`
+wins, and only when it is unset is `.env.test` read via `process.loadEnvFile()`.
+That single order now serves both environments — CI sets the variable and never
+touches the file; a developer sets no variable and the file is read. What the
+gate changed is which side is committed, not how the value is resolved.
+
+#### The declined alternative, recorded
+
+Revision 3 proposed committing `.env.test` behind a targeted `!.env.test`
+negation in `.gitignore`, arguing that PC-1 names the file as a deliverable,
+that its content is a throwaway local URL of the same class as the already
+re-included `.env.example`, and that one committed URL cannot drift.
+
+**That resolution would have crossed five convention lines, not the three
+revision 3 named.** The undercount is itself recorded, because the case was
+argued to the gate on the smaller number:
 
 - `AGENTS.md` Prohibited: "Never commit secrets, `.env`, `dist/`, …".
 - `persistence-conventions.md` **PC-10**, final bullet: "Generated database
   artifacts, dumps, and `.env` files are never committed."
 - `persistence-conventions.md` **PC-1**, second bullet: "Credentials are never
-  hard-coded and never committed." The planned `.env.test` carries a connection
-  string with a username and password, throwaway though they are.
+  hard-coded and never committed."
+- `security-conventions.md` **SC-7**, line 295: "No credentials, tokens, private
+  keys, or `.env` files are committed." Committing `.env.test` would have made
+  this sentence literally false.
+- `security-conventions.md` **SC-7**, line 299: "`.gitignore` covers `.env`,
+  `node_modules/`, `dist/`, `coverage/`, and logs." The negation would have
+  carved a named exception into exactly that coverage.
 
-This is the only decision in this plan that acts against a line in `AGENTS.md`
-Prohibited, and D-9 sets the plan's own standard for that case: amending or
-crossing a convention is a human decision. **So D-4 is carried to
-`HUMAN_PLAN_APPROVAL` as Open Question 3, and this plan does not treat it as
-settled.** The reasoning below is the case for the resolution, offered to the
-gate — not a decision taken in its place. If the gate declines it, the fallback
-is the rejected alternative recorded at the end of this decision: CI supplies
-`DATABASE_URL` as a workflow variable and `.env.test` stays local-only. Either
-outcome leaves the file list and the step boundaries unchanged.
-
-Reasons, in order of weight:
-
-1. **PC-1 names `.env.test` literally as a deliverable** of the implementing
-   Story. A file that exists only on one machine has not been delivered.
-2. **It carries no secret.** Its whole content is a throwaway local URL against
-   the disposable compose instance on port 5433 — the same class of value as
-   `.env.example`, which the same `.gitignore` already re-includes two lines
-   above. The `AGENTS.md` prohibition is on committing a **real** `.env`; this is
-   a test fixture, and the negation is a single exact filename rather than a
-   widened pattern.
-3. **One source of truth.** The local run and CI use the same URL, so a
-   divergence cannot hide in a workflow file.
-
-Two supporting choices that make resolution 1 work in CI without a second copy
-of the URL:
-
-- **The CI `services: postgres` block maps host port 5433**, so the committed
-  `.env.test` is correct unchanged in CI. PC-1 fixes 5433 for local and leaves
-  the CI port open; matching them is what keeps one URL.
-- **An externally-set `DATABASE_URL` wins over the file.** The resolution order
-  is `process.env.DATABASE_URL` first, then `.env.test`. That leaves an escape
-  hatch for a CI runner or a developer with a port conflict without editing a
-  committed file.
-
-The rejected alternative — CI supplies `DATABASE_URL` as a workflow variable and
-`.env.test` stays local-only — keeps the secrets rule maximally intact but leaves
-PC-1's named deliverable uncommitted and puts the connection string in two
-places. The override above preserves its one real advantage.
+Should the question ever be reopened, a clean approval is an edit to five lines
+rather than three, **and** a constraint restricting `.env.test` to exactly
+`DATABASE_URL` — which exists nowhere in the conventions today, and without
+which nothing mechanical stops a second variable being added to a committed
+file.
 
 ### D-5 — Middleware order in `src/app.ts`, stated rather than discovered
 
@@ -417,13 +456,14 @@ predicted change surface with **three refinements**, each recorded because
 | # | Impact analysis said | This plan says | Why |
 |---|---|---|---|
 | 1 | `prisma.config.ts` reading `DATABASE_URL` creates an AD-7 question for this stage to settle, possibly by narrowing AD-7's wording (§12 marks `architecture.md` AD-7 as a conditional documentation change) | No AD-7 or `AGENTS.md` change is needed; the file reads no `process.env` (D-2) | `prisma/config` exports its own `env()` helper. Verified by execution this stage; the analysis flagged the file's exact shape as unexecuted (§17) |
-| 2 | `.gitignore` is a `MEDIUM`-confidence change, "one of two resolutions" | `.gitignore` **is** changed, with `!.env.test` (D-4) | The plan picks the resolution, as R-3 required |
+| 2 | `.gitignore` is a `MEDIUM`-confidence change, "one of two resolutions" | `.gitignore` is **not changed at all** (D-4) | The gate picked the resolution R-3 required, and it is the one that needs no edit: `.gitignore:28` (`.env.*`) already ignores `.env.test` |
 | 3 | `src/modules/users/users.schemas.ts` is `Unknown` — "created only if the design needs it" | Not created (D-8) | The design takes repository types from the Prisma client |
 
 Everything else is carried forward as predicted: the affected modules and layers,
-the file lists below, no new module or dependency, and all seven risks. The two
-files the analysis newly identified — `tsconfig.typecheck.json` and `.gitignore`
-— are both in this plan's Files To Modify.
+the file lists below, no new module or dependency, and all seven risks. Of the two
+files the analysis newly identified, `tsconfig.typecheck.json` is in this plan's
+Files To Modify and `.gitignore` is not — refinement 2 is why, and it is the one
+place where this plan's file list is narrower than the predicted surface.
 
 ---
 
@@ -434,7 +474,7 @@ files the analysis newly identified — `tsconfig.typecheck.json` and `.gitignor
 | `prisma.config.ts` | Prisma 7 migration connection config (D-2) | db-design §Prisma 7; R-2 |
 | `prisma/migrations/<timestamp>_init_user/migration.sql` | `CREATE TYPE Role`; `CREATE TABLE "user"`; PK; unique on `email` | PC-2; db-design §Migration |
 | `docker-compose.yml` | `db` service on port **5433** | FR-19; PC-1 |
-| `.env.test` | Test `DATABASE_URL` (committed, D-4) | FR-19; PC-1 |
+| `.env.test` | Test `DATABASE_URL`. **Created locally, never committed** — `.gitignore:28` already ignores it (D-4) | FR-19; PC-1 |
 | `src/lib/errors.ts` | `DomainError` base + **five** subclasses (D-1) | FR-21; AD-6 |
 | `src/lib/password.ts` | Argon2id wrapper, SC-1 parameters passed explicitly every call | FR-24; SR-1, SR-2 |
 | `src/middleware/validateRequest.ts` | `415` `Content-Type` check, then Zod application | FR-22; AD-5; VR-1…VR-6, VR-9, VR-10 (`415` half) |
@@ -467,14 +507,13 @@ implementation.
 | `src/app.ts` | The eleven-step assembly of D-5 | FR-13, FR-14, FR-23; SC-5 |
 | `src/server.ts` | `listen`, `SIGTERM`/`SIGINT`, graceful shutdown incl. Prisma disconnect | FR-20; `module-map.md` |
 | `tsconfig.typecheck.json` | `include` gains `prisma.config.ts` (D-3) | R-2 |
-| `.gitignore` | Gains `!.env.test` (D-4) | R-3; PC-1 |
 | `vitest.config.ts` | `test.projects` with `unit`, `harness` and `integration`, the three `include` globs covering every test file on disk; `fileParallelism: false` and `globalSetup` on `integration` only; resolve the test `DATABASE_URL` in the config module body via `process.loadEnvFile()` (D-10) | FR-19; PC-1 |
 | `package.json` | `db:test:up` / `db:test:down` scripts. **No other script change** | FR-19; PC-1 |
 | `AGENTS.md` | The two new scripts added to the Build and Validation Commands table | FR-19; PC-1 (by name) |
 | `.env.example` | Add the test-database placeholder; **remove the four JWT entries** | FR-18; SC-3, SC-7 |
-| `.github/workflows/ci.yml` | `services: postgres` on host port 5433; the stale "Not here yet" header comment removed | FR-19; PC-1 |
+| `.github/workflows/ci.yml` | `services: postgres` on host port 5433; `DATABASE_URL` supplied to the test step as a workflow environment variable (D-4); the stale "Not here yet" header comment removed | FR-19; PC-1 |
 | `docs/api/openapi.json` | Regenerated by `npm run openapi:generate`, never hand-edited | FR-16; AC-10 |
-| `tests/README.md` | Its "None of the plumbing exists yet" paragraph becomes false | Impact analysis §12 |
+| `tests/README.md` | Its "None of the plumbing exists yet" paragraph becomes false, and it documents how to create the uncommitted `.env.test` a fresh clone needs (D-4) | Impact analysis §12; PC-1 |
 | `README.md` | Only if it describes setup the compose file and new scripts change | Impact analysis §12 (LOW) |
 
 ## Files Explicitly Not Changed
@@ -486,6 +525,7 @@ implementation.
 | `src/modules/users/users.controller.ts`, `users.routes.ts` | `users` exposes no endpoint in this Story |
 | `src/lib/openapi.ts`, `scripts/generate-openapi.ts`, `eslint.config.js`, `tsconfig.json`, `tests/support/setup.ts` | Reused unchanged (impact analysis §6) |
 | `tests/harness.test.ts` | Reused unchanged **and still collected** — the `harness` project of D-10 exists so that this row is a claim about its execution and not only about its text (`PLAN_REVIEW:p-6`) |
+| `.gitignore` | The impact analysis predicted a change here and revision 3 planned one. `HUMAN_PLAN_APPROVAL` declined the `!.env.test` negation (D-4), and the resolution it chose needs no edit: line 28 (`.env.*`) already ignores `.env.test`. Listed rather than dropped silently, because `RECONCILIATION` compares this plan against a predicted surface that includes it |
 | `scripts/validate-harness.py`, `scripts/validate-harness.test.py`, `docs/workflow/artifact-schema.md` | Human approval only (`AGENTS.md` Prohibited); nothing here needs them |
 | Any `products` / `orders` / `support` path | Out of scope (`AGENTS.md` Active Scope) |
 
@@ -538,12 +578,15 @@ committed; `npm run prisma:deploy` applies cleanly to an empty database.
 
 ### Step 3 — Test-database infrastructure (PC-1, in full)
 
-**Files.** `docker-compose.yml` (new); `.env.test` (new); `.gitignore`;
-`package.json`; `vitest.config.ts`; `.github/workflows/ci.yml`; `AGENTS.md`.
+**Files.** `docker-compose.yml` (new); `package.json`; `vitest.config.ts`;
+`.github/workflows/ci.yml`; `AGENTS.md`. **`.gitignore` is not touched**, and
+`.env.test` is created locally rather than committed (D-4).
 
 - `docker-compose.yml`: a `db` service on host port **5433**.
-- `.env.test`: the test `DATABASE_URL` against 5433. Committed via `!.env.test`
-  in `.gitignore` (D-4).
+- `.env.test`: the test `DATABASE_URL` against 5433. **Created locally by the
+  developer and not committed** (D-4); `.gitignore:28` already ignores it, so no
+  `.gitignore` edit is part of this step. The placeholder that documents the
+  variable is `.env.example`, written in Step 1.
 - `package.json`: `db:test:up` and `db:test:down`. **No other script changes.**
 - `AGENTS.md`: both scripts added to the Build and Validation Commands table —
   PC-1 requires this **by name**, so it is a deliverable, not housekeeping.
@@ -553,9 +596,13 @@ committed; `npm run prisma:deploy` applies cleanly to an empty database.
   repository has; file parallelism is disabled on the `integration` project only;
   `globalSetup` is declared on that project only; the test `DATABASE_URL`
   resolves as `process.env.DATABASE_URL` ?? `.env.test` (D-4) in the config
-  module body, **read with `process.loadEnvFile()`** and no new dependency.
-- `.github/workflows/ci.yml`: `services: postgres` mapped to host **5433**; the
-  stale "Not here yet: database-backed integration tests" header comment removed.
+  module body, **read with `process.loadEnvFile()`** and no new dependency. That
+  order is what lets one mechanism serve both sides of D-4: CI sets the variable,
+  a developer's machine falls through to the local file.
+- `.github/workflows/ci.yml`: `services: postgres` mapped to host **5433**;
+  `DATABASE_URL` supplied to the test step as a workflow environment variable, so
+  CI never reads `.env.test` (D-4); the stale "Not here yet: database-backed
+  integration tests" header comment removed.
 
 #### D-10 — `test.projects` is the mechanism, and this is its shape
 
@@ -709,6 +756,20 @@ reaches the database and reports test results rather than a connection error;
 stopped, the run fails with **the command to run** and not a raw connection error
 (PC-1 states this explicitly — the Stop hook forwards that message);
 `npm run format:check` passes on the new YAML.
+
+Two of those assertions exist because of D-4 and are not optional:
+
+- **`.env.test` is not committed and `.gitignore` is unchanged.** After the step,
+  `git status --porcelain` shows no `.env.test`, `git check-ignore -v .env.test`
+  still resolves to `.gitignore:28`, and `git diff -- .gitignore` is empty. This
+  is the observable form of the gate's decision; a future revision that quietly
+  re-adds the negation fails here.
+- **CI does not depend on the file.** With `.env.test` absent and `DATABASE_URL`
+  set in the environment, the suite resolves the URL from the variable and never
+  calls `process.loadEnvFile()` — the guard's other half, and the path CI takes.
+  With the variable unset and the file absent, the wrapped `ENOENT` names both
+  `npm run db:test:up` and the `.env.test` that must be created, which is the
+  first-clone experience this resolution accepts.
 
 ### Step 4 — Tests (stage `TEST_WRITING`)
 
@@ -984,7 +1045,7 @@ closed here; three are carried to the stage that owns them.
 |---|---|---|
 | R-1 / `DESIGN_REVIEW:e-1` | MAJOR | **Mitigated** by D-1, which states in as many words that AD-6's five-class list is authoritative and FR-21's four is stale. Detection net: the `429` AC-6 body assertion |
 | R-2 | MAJOR | **Closed** by D-2 (no `process.env`, no convention amendment) and D-3 (`tsconfig.typecheck.json` in Step 1) |
-| R-3 | MAJOR | **Closed** by D-4 (`!.env.test`, CI on 5433, env override) |
+| R-3 | MAJOR | **Closed** by D-4 as decided at `HUMAN_PLAN_APPROVAL` on 2026-09-03: `.env.test` local-only, CI on 5433 supplying `DATABASE_URL` as a workflow variable, `.gitignore` unchanged |
 | R-4 | MAJOR | **Carried to `TEST_WRITING` and Step 6.** Both Zod mappings are mandatory; `minProperties: 1` must reach the generated document via `.openapi()` |
 | R-5 | MINOR | **Closed** by D-5, the explicit eleven-step order |
 | R-6 | MINOR | **Closed** by D-6, both header flags `false`, verified against the installed 8.7.0 |
@@ -1020,46 +1081,58 @@ PC-1 scripts — so `npm run audit:check` is required.
 |---|---|
 | `src/config/env.ts` | Validates the six variables; holds the Argon2id constants; **no JWT variable** |
 | `.env.example` | Test-database placeholder **added**; the four JWT entries **removed** (FR-18) |
-| `.env.test` | New, committed (D-4) |
-| `.gitignore` | `!.env.test` (D-4) |
+| `.env.test` | New, **local-only and never committed** (D-4) |
 | `tsconfig.typecheck.json` | `include` gains `prisma.config.ts` (D-3) |
 | `prisma.config.ts` | New; migration connection via `env('DATABASE_URL')` (D-2) |
 | `vitest.config.ts` | `test.projects` (`unit` / `harness` / `integration`); `globalSetup` and `fileParallelism: false` on `integration` only; test URL resolution in the module body via `process.loadEnvFile()` (D-10) |
 | `package.json` | `db:test:up`, `db:test:down` |
 | `AGENTS.md` | Both scripts in the Build and Validation Commands table |
-| `.github/workflows/ci.yml` | `services: postgres` on 5433; stale header comment removed |
+| `.github/workflows/ci.yml` | `services: postgres` on 5433; `DATABASE_URL` as a workflow environment variable (D-4); stale header comment removed |
 | `docker-compose.yml` | New; `db` service on 5433 |
 
-**No secret is committed.** `.env.test` carries a throwaway local URL against a
-disposable instance; no real `.env` is committed; no value moves into code.
+**No secret is committed, and no `.env` file of any kind is.** `.env.test` stays
+on the developer's machine; CI holds its `DATABASE_URL` in the workflow
+environment; no value moves into code. `.gitignore` needs no exception, so the
+coverage `security-conventions.md` SC-7 line 299 describes is left intact.
 
 ## Open Questions
 
 None blocks implementation. Questions 1 and 2 are recorded for
-`HUMAN_PLAN_APPROVAL` to note rather than to answer before work starts;
-question 3 asks for an explicit decision, and both of its outcomes are already
-planned for.
+`HUMAN_PLAN_APPROVAL` to note rather than to answer before work starts.
+**Question 3 is answered** — it is retained as the record of a closed decision,
+not as a question this plan still asks.
 
-1. **`persistence-conventions.md` PC-1 predates Prisma 7** (D-9). It describes
-   neither the required adapter object nor the separate migration config file.
-   Amending a convention is a human decision, so this plan implements PC-1's
-   substance and does not edit it. **Whoever owns that decision should amend PC-1**
-   so the next Story reads a convention that matches the toolchain.
+1. **`persistence-conventions.md` PC-1 needs an amendment, now for two reasons**
+   (D-9). Amending a convention is a human decision, so this plan implements
+   PC-1's substance and does not edit it. **Whoever owns that decision should
+   amend PC-1** so the next Story reads a convention that matches both the
+   toolchain and the delivery:
+   - It **predates Prisma 7** and describes neither the required adapter object
+     nor the separate migration config file. (`DB_DESIGN:PC-1`, already open —
+     and settled in the repository by commit `b28766f`, which added the "Prisma 7
+     splits the connection in two" block.)
+   - It **names `.env.test` literally as a deliverable** of the implementing
+     Story, and after the `HUMAN_PLAN_APPROVAL` decision of 2026-09-03 (D-4) this
+     Story deliberately does not ship that file. The convention will keep
+     describing a deliverable that no Story delivers until someone rewords it —
+     the accepted cost of the decision, recorded here so the next reader meets it
+     as a known gap rather than as a defect. Both belong in the same edit.
 2. **The `CHECK (email = lower(btrim(email)))` constraint stays unspecified.**
    Endorsed twice already — by `DB_DESIGN` and by `DESIGN_REVIEW` v2 — on the
    grounds that Prisma cannot express a `CHECK` while PC-2 makes `schema.prisma`
    the source of truth, so it would be raw SQL the model does not describe.
    Recorded so it is not reopened downstream as a fresh idea.
-3. **D-4 commits `.env.test`, against three convention lines** (`AGENTS.md`
-   Prohibited; `persistence-conventions.md` PC-10 final bullet; PC-1 second
-   bullet), because PC-1 names the file literally as a deliverable of this Story.
-   The case is argued in full at D-4 and the file carries no secret, but the
-   lines it crosses belong to the person at this gate, not to this plan.
-   **This one does need an answer** — approval blesses the `!.env.test`
-   negation; declining it selects the recorded fallback (CI supplies
-   `DATABASE_URL` as a workflow variable, `.env.test` stays local-only) and
-   changes Step 3 and the `.gitignore` row only. `PLAN_REVIEW:p-1` stays open
-   until it is answered.
+3. **ANSWERED — whether `.env.test` may be committed.** Revision 3 asked the
+   gate to bless a `!.env.test` negation in `.gitignore`. **`HUMAN_PLAN_APPROVAL`
+   declined it on 2026-09-03** (`docs/workflow/history.jsonl`,
+   2026-09-03T12:00:14Z, `human:KShust`) and selected the recorded fallback: CI
+   supplies `DATABASE_URL` as a workflow variable and `.env.test` stays
+   local-only. D-4 now states that resolution directly, and the declined
+   alternative is archived at the end of D-4 together with the correction that it
+   would have crossed **five** convention lines rather than the three revision 3
+   named — `security-conventions.md` SC-7 lines 295 and 299 were missed.
+   `PLAN_REVIEW:p-1` is answered by this decision. Nothing here is still open;
+   it is listed so the next reader does not reopen it as a fresh idea.
 
 **Explicitly not open**, and listed so the gate is not asked to decide something
 already decided: the `@prisma/adapter-pg` dependency (commit `0339b4a`) and the
