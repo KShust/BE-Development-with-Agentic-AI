@@ -57,6 +57,33 @@ command and exit status — a step that was not executed is not a passing step.
 14. **Commit message** — Conventional Commits, module as the scope
     (`feat(auth): ...`).
 
+    **A commit that records a workflow stage names the stage first**, before
+    saying what changed:
+
+    ```
+    docs(US-001): IMPLEMENTATION_PLANNING - record the plan and advance to PLAN_REVIEW
+    docs(US-001): API_DESIGN attempt 2 - close design-review d-1 and d-2
+    ```
+
+    The stage is the canonical id from `stage-map.yaml` `stage_order`, and it is
+    **the stage that ran**, never the stage that prompted the work. A contract
+    revised because `DESIGN_REVIEW` sent it back is an `API_DESIGN` commit: the
+    reviewing stage is what the body explains, not what the subject claims. Add
+    `attempt <n>` when the stage has run more than once, because that is where
+    the loop-back becomes visible in `git log --oneline`.
+
+    A commit that is not a stage run does not get a stage. A dependency, a
+    harness change, a convention amendment and a `.gitignore` fix are not part
+    of the delivery flow, and dressing them as stages would make the log lie
+    about what the workflow did. They keep a plain scope: `chore(deps): ...`,
+    `chore(harness): ...`, `docs(architecture): ...`.
+
+    Why the subject and not just the body: `history.jsonl` is the authoritative
+    record of which stage ran and with what verdict, and nothing in git competes
+    with it. What the subject line buys is a `git log --oneline` that can be read
+    against that record without opening fourteen commits — and a reviewer who can
+    see a loop-back as three adjacent lines rather than by reconstructing it.
+
 Relationship to CI and to the Stop hook:
 
 - `.github/workflows/ci.yml` runs every step of this list that is a command:

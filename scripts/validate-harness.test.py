@@ -349,6 +349,18 @@ def _(work):
     warning=True,
 )
 def _(work):
+    # Construct the condition instead of inheriting it: the case used to rely
+    # on IMPLEMENTATION_PLANNING not having run yet in the live Story. Once it
+    # ran, its skill appeared in history.jsonl and the injected file read as
+    # legitimately produced. Dropping that stage's own events first makes the
+    # artifact unrecorded by construction, which no later stage can age out.
+    history = work / "docs" / "workflow" / "history.jsonl"
+    kept = [
+        line
+        for line in history.read_text(encoding="utf-8").splitlines(keepends=True)
+        if '"skill": "implementation-planner"' not in line
+    ]
+    history.write_text("".join(kept), encoding="utf-8", newline="\n")
     (work / "docs" / "plans" / "US-001-implementation-plan.md").write_text(
         "# injected: never produced by IMPLEMENTATION_PLANNING\n", encoding="utf-8"
     )

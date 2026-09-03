@@ -350,7 +350,10 @@ Do not start implementation until all of these hold; otherwise stop and ask.
   `docs/`), and `AGENTS.md` when a convention itself changed.
 - No secrets or sensitive data in code or logs; no debug code; no unrelated
   changes.
-- Conventional Commit format used.
+- Conventional Commit format used, and a commit that records a workflow stage
+  names that stage first in the subject — the stage that *ran*, not the one that
+  prompted it. Full rule and the not-a-stage cases:
+  `.claude/skills/pre-commit-checklist/SKILL.md` step 14.
 
 ---
 
@@ -383,6 +386,23 @@ The prohibitions that can be expressed as a tool rule are enforced by
 or writing `.env`, and editing an applied migration. A denied rule cannot be
 waived in-session; changing one is a commit and a review. The rest of this list
 has no mechanical barrier and depends on you reading it.
+
+**`git rebase` is the one deliberate exception, decided by a human on
+2026-09-03.** The Git rule above is "never rewrite *shared* history", and
+unpushed commits on a feature branch are not shared — so denying `rebase`
+outright was stricter than the rule it enforced. It now sits in
+`permissions.ask`, to reorganize commits before a push **on request, never
+unprompted**. Everything else that rewrites or destroys history stays denied:
+`reset --hard`, `clean`, `restore`, `filter-branch`, `commit --amend`,
+`reflog delete`, `update-ref -d`, and `push` itself.
+
+One consequence is operational, and it binds. Nearly every workflow commit
+appends a line to `docs/workflow/history.jsonl`, which is append-only. Squashing
+such commits is safe — the final file is byte-identical. Reordering or dropping
+them is not. **After any rebase that touches those commits, verify the final
+`history.jsonl` against its pre-rebase content: the set of events and their
+order must be unchanged.** A rebase that silently drops an event breaks the
+record `attempt` and the derived finding set are computed from.
 
 Routine read-only and validation commands are pre-approved in the same file, so
 that a long implementation run does not train its reviewer to approve without
