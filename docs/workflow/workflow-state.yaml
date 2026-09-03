@@ -4,16 +4,16 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: TEST_WRITING
+current_stage: IMPLEMENTATION
 previous_stage: TEST_WRITING
-last_completed_stage: HUMAN_PLAN_APPROVAL
-status: BLOCKED
-attempt: 2
-last_invoked_skill: test-writer
+last_completed_stage: TEST_WRITING
+status: IN_PROGRESS
+attempt: 1
+last_invoked_skill: null
 last_result:
-  verdict: BLOCKED
+  verdict: HUMAN_APPROVED
   stage: TEST_WRITING
-  recorded_at: 2026-09-03T18:38:12Z
+  recorded_at: 2026-09-03T18:55:49Z
 last_artifacts:
   - type: test_strategy
     path: docs/tests/US-001-test-strategy.md
@@ -25,25 +25,24 @@ last_artifacts:
     path: docs/evidence/US-001-test-generation-report.md
     version: 3
 pending_human_gate: null
-# TEST_WRITING:B-1 is RESOLVED by the 2026-09-03 human decision (commit
-# 4a90204): eight of the nine imported production modules now carry
-# signature-only stubs, and the suite moved from 0 of 71 tests executing to
-# 71 of 71, typecheck 16->4 and lint 173->30. The residual is a different root
-# cause - src/lib/prisma.ts cannot be stubbed at all, because PrismaClient is
-# a *generated* type, not a missing export - raised here as TEST_WRITING:B-2.
-# current_stage stays TEST_WRITING and attempt becomes 2: this is a genuine
-# re-entry (test-writer ran again, from a routed continue, after the stub
-# authorization landed), distinct from a same-attempt repeat.
+# TEST_WRITING is not a human_gate stage in stage-map.yaml, so this is not the
+# HUMAN_APPROVED/on_approve mechanic that section describes for a real gate -
+# it is a human decision to accept a CRITICAL blocking issue that no
+# TEST_WRITING loop-back key could route, made explicit here (skill: null,
+# no findings raised or closed by the decision itself) rather than
+# invented silently. Full reasoning in this event's history.jsonl comment.
 #
-# These three artifacts already carry their v3 content (the ac-test-matrix
-# and strategy revisions this attempt made, plus test-generation-report's
-# "Revisions 1-2" retained section) - no earlier intermediate snapshot was
-# captured by a commit, so nothing is lost, only the mid-point view.
-blocking_issues:
-  - "TEST_WRITING:B-2 (CRITICAL) - src/lib/prisma.ts cannot be given a signature-only stub because PrismaClient is a generated type, absent until `prisma generate` runs against the schema plan Step 2 writes. Typing it `any`/`unknown` or hand-writing a substitute are both forbidden by the same stub authorization that resolved B-1; the schema is IMPLEMENTATION's work, not TEST_WRITING's. 100% of the 4 residual typecheck and 30 residual lint errors trace to this one file. No TEST_WRITING loop-back key fits: re-running this stage reproduces the identical failure, and no upstream design is invalid. This needs a human decision on how TEST_WRITING should proceed before IMPLEMENTATION has run."
+# TEST_WRITING has delivered what this stage can deliver: 71 of 71 tests
+# authored and executing, every AC001-AC007 with mapped coverage,
+# format:check and check:cycles passing. IMPLEMENTATION Step 2
+# (prisma/schema.prisma + `prisma generate`) is expected to clear all 34
+# residual diagnostics as a side effect of ordinary planned work -
+# IMPLEMENTATION_VERIFICATION must confirm both reach 0, or B-2 reopens.
+blocking_issues: []
 # Derived from history.jsonl: every id whose latest event says RAISED.
-# TEST_WRITING:B-1 closes (RESOLVED) and TEST_WRITING:B-2 opens (RAISED) in
-# the same event - the set holds at 11, one id swapped for another.
+# TEST_WRITING:B-2 moves RAISED -> ACCEPTED (not resolved, not waived - a
+# specific expectation that Step 2 discharges it, checked at
+# IMPLEMENTATION_VERIFICATION). The set drops from 11 to 10.
 non_blocking_findings:
   - id: "SPECIFICATION:FR-18"
     severity: MAJOR
@@ -85,11 +84,7 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "IMPLEMENTATION_PLANNING owes it: the test DATABASE_URL is resolved in the vitest.config.ts module body, evaluated for every invocation, so under the D-4 fallback an absent .env.test makes process.loadEnvFile() throw ENOENT and fails test:unit and the harness project too; D-4 records two accepted costs where there are three and D-10 still claims unit runs are free of any database dependency"
-  - id: "TEST_WRITING:B-2"
-    severity: CRITICAL
-    status: RAISED
-    summary: "src/lib/prisma.ts cannot be given a signature-only stub because PrismaClient is a generated type absent until prisma generate runs against the plan Step 2 schema; any/unknown and a hand-written substitute are both forbidden by the stub authorization, and the schema belongs to IMPLEMENTATION - 100% of the 4 residual typecheck and 30 residual lint errors trace to this one file"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T18:38:12Z
+updated_at: 2026-09-03T18:55:49Z
 completed_at: null
 archived_at: null
