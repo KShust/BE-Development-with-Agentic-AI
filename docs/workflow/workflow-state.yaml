@@ -4,36 +4,43 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: PLAN_REVIEW
-previous_stage: IMPLEMENTATION_PLANNING
-last_completed_stage: IMPLEMENTATION_PLANNING
-status: IN_PROGRESS
-attempt: 3
-last_invoked_skill: implementation-planner
+current_stage: HUMAN_PLAN_APPROVAL
+previous_stage: PLAN_REVIEW
+last_completed_stage: PLAN_REVIEW
+status: WAITING_FOR_HUMAN
+attempt: 2
+last_invoked_skill: plan-reviewer
 last_result:
   verdict: PASS
-  stage: IMPLEMENTATION_PLANNING
-  recorded_at: 2026-09-03T08:02:29Z
+  stage: PLAN_REVIEW
+  recorded_at: 2026-09-03T09:30:30Z
 last_artifacts:
-  - type: implementation_plan
-    path: docs/plans/US-001-implementation-plan.md
+  - type: plan_review
+    path: docs/reviews/plans/US-001-plan-review.md
     version: 3
-pending_human_gate: null
-blocking_issues: []
-# attempt is 3 because it counts entries into PLAN_REVIEW and of that stage only
-# (state-schema.md rule 4): 2026-09-03T01:48:16Z, 2026-09-03T07:03:30Z, and this
-# one. It is not a total of stage runs, and it does not carry over the 3 that
-# IMPLEMENTATION_PLANNING held before this transition - that counter belonged to
-# the stage just left.
+# attempt is 2 because it counts entries into HUMAN_PLAN_APPROVAL and of that
+# stage only (state-schema.md rule 4, which is authoritative over the SKILL.md
+# shorthand "reset to 1 on a forward move"): 2026-09-03T06:15:23Z and this one.
+# It does not carry over the 3 that PLAN_REVIEW held before this transition -
+# that counter belonged to the stage just left.
 #
 # Derived from history.jsonl: every id whose latest event says RAISED.
-# IMPLEMENTATION_PLANNING closed the two findings PLAN_REVIEW v2 raised - p-6
-# (MAJOR, the loop-back reason) and p-7 (MINOR) - and raised none, so the set
-# moves 12 -> 10. Both closures were verified by execution at the installed
-# Vitest 4.1.11 and Node v24.20.0 during the stage, not asserted from the text.
+# PLAN_REVIEW v3 closed nothing new - p-6 and p-7 were already recorded RESOLVED
+# by IMPLEMENTATION_PLANNING at 2026-09-03T08:02:29Z, and this stage's
+# contribution was to verify both closures by execution rather than accept them
+# from the plan's revision table. Re-recording them as RESOLVED would be a
+# duplicate closure, so this event records only the one status change it
+# actually produced: PLAN_REVIEW:p-8, new and RAISED. The set moves 10 -> 11.
 #
-# PLAN_REVIEW:p-1 and PLAN_REVIEW:p-4 stay RAISED and are the two the next gate
-# is owed. p-1 closes only when HUMAN_PLAN_APPROVAL records an answer on whether
+# p-8 is genuinely new, not a re-raise: D-10 declares sequence.shuffle on the
+# unit project only, and the root block it sketches does not list sequence among
+# the shared options, so the harness project inherits no file shuffle where the
+# flat config being replaced applies it to every file it collects. Effect today
+# is nil (one harness file); it is owed to IMPLEMENTATION when the config is
+# written.
+#
+# PLAN_REVIEW:p-1 and PLAN_REVIEW:p-4 stay RAISED and are the two this gate is
+# owed. p-1 closes only when HUMAN_PLAN_APPROVAL records an answer on whether
 # .env.test may be committed; plan v3 surfaces it as Open Question 3 and again
 # declines to take the decision. p-4 is a defect in security-conventions.md SC-3
 # line 178, which no stage of this Story owns.
@@ -77,12 +84,33 @@ non_blocking_findings:
   - id: "PLAN_REVIEW:p-1"
     severity: MINOR
     status: RAISED
-    summary: "HUMAN_PLAN_APPROVAL owes it: plan D-4 commits .env.test but cites only the AGENTS.md Prohibited line, not persistence-conventions.md PC-10 or PC-1's own never-committed bullet, and does not list itself as an Open Question"
+    summary: "HUMAN_PLAN_APPROVAL owes it: plan D-4 commits .env.test and now cites AGENTS.md Prohibited, PC-10 and PC-1 and lists itself as Open Question 3, but the decision to cross those three convention lines belongs to the human at this gate"
   - id: "PLAN_REVIEW:p-4"
     severity: MINOR
     status: RAISED
     summary: "human decision owes it: security-conventions.md SC-3 line 178 cites api-conventions.md AC-5 for the 429 error body, but AC-5 is Error status codes and AC-6 is Error body; SC-3 line 111 cites AC-6 correctly"
+  - id: "PLAN_REVIEW:p-8"
+    severity: MINOR
+    status: RAISED
+    summary: "IMPLEMENTATION owes it: plan v3 D-10 declares sequence.shuffle on the unit project only and omits sequence from the shared root block, so the harness project and any future tests/*.test.ts inherit no file shuffle that NFR-005 relies on; nil effect today at one harness file"
+pending_human_gate:
+  stage: HUMAN_PLAN_APPROVAL
+  status: PENDING
+  required_artifacts:
+    - type: implementation_plan
+      path: docs/plans/US-001-implementation-plan.md
+      version: 3
+    - type: plan_review
+      path: docs/reviews/plans/US-001-plan-review.md
+      version: 3
+  automated_verdict: PASS
+  blocking_findings: []
+  requested_at: 2026-09-03T09:30:30Z
+  decided_at: null
+  decided_by: null
+  comment: null
+blocking_issues: []
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T08:02:29Z
+updated_at: 2026-09-03T09:30:30Z
 completed_at: null
 archived_at: null
