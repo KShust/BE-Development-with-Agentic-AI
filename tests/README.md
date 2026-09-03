@@ -30,16 +30,34 @@ PC-1, which is authoritative. In short: a disposable Postgres on port **5433**
 (docker compose locally, GitHub Actions `services:` in CI), schema applied with
 `prisma migrate deploy`, connection from `.env.test`, `TRUNCATE` between tests.
 
-Integration tests run **serially** (`fileParallelism: false` for this folder).
-Unit tests keep the parallel, shuffled execution described above. One shared
+Integration tests run **serially** (`fileParallelism: false` on the `integration`
+Vitest project). Unit tests keep the parallel, shuffled execution described
+above, and the `harness` project collects `tests/harness.test.ts`. One shared
 database plus parallel files would mean one file truncating rows another is
 asserting on.
 
 Still true regardless: never point a test at the development `DATABASE_URL`, and
 never invent a connection mechanism inside a test file — use the shared fixture.
 
-**None of the plumbing exists yet.** The compose file, the `db:test:up` /
-`db:test:down` scripts, `.env.test`, the Vitest `globalSetup`, the truncation
-fixture, and the CI service block are all built by the first Story that needs
-database-backed tests; PC-1 lists exactly what that Story owes. `tests/integration/`
-is empty until then.
+## Running the integration tests
+
+1. `npm run db:test:up` — starts the disposable PostgreSQL on host port 5433
+   (`docker compose`; tmpfs, so every start is clean).
+2. On a **fresh clone**, create `.env.test` with the test connection string —
+   it is git-ignored and never committed (plan D-4). `.env.example` carries the
+   placeholder line:
+
+   ```
+   DATABASE_URL=postgresql://postgres:postgres@localhost:5433/customer_portal_test
+   ```
+
+3. `npm run test:integration` (or `npm run test` for everything). The `integration`
+   project's `globalSetup` applies the committed migrations with
+   `prisma migrate deploy`; if the database is unreachable it fails with the
+   command above rather than a raw connection error (PC-1).
+4. `npm run db:test:down` when finished.
+
+CI needs no `.env.test`: it supplies `DATABASE_URL` as a job environment variable
+pointing at a GitHub Actions `services: postgres` on the same host port.
+
+`npm run test:unit` and `npm run test` for the `harness` project need no database.

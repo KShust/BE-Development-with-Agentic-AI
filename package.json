@@ -27,7 +27,9 @@
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "db:test:up": "docker compose up -d db",
+    "db:test:down": "docker compose down -v"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^9.1.0",

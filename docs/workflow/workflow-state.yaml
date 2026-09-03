@@ -5,49 +5,39 @@ version: 1
 story: US-001
 workflow: story-delivery
 current_stage: IMPLEMENTATION
-previous_stage: TEST_WRITING
+previous_stage: IMPLEMENTATION
 last_completed_stage: TEST_WRITING
-status: IN_PROGRESS
+status: BLOCKED
 attempt: 1
-last_invoked_skill: null
+last_invoked_skill: express-implementor
 last_result:
-  verdict: HUMAN_APPROVED
-  stage: TEST_WRITING
-  recorded_at: 2026-09-03T18:55:49Z
+  verdict: BLOCKED
+  stage: IMPLEMENTATION
+  recorded_at: 2026-09-03T19:54:52Z
 last_artifacts:
-  - type: test_strategy
-    path: docs/tests/US-001-test-strategy.md
-    version: 3
-  - type: ac_test_matrix
-    path: docs/tests/US-001-ac-test-matrix.md
-    version: 3
-  - type: test_generation_report
-    path: docs/evidence/US-001-test-generation-report.md
+  - type: implementation_report
+    path: docs/evidence/US-001-implementation-report.md
     version: 3
 pending_human_gate: null
-# TEST_WRITING is not a human_gate stage in stage-map.yaml, so this is not the
-# HUMAN_APPROVED/on_approve mechanic that section describes for a real gate -
-# it is a human decision to accept a CRITICAL blocking issue that no
-# TEST_WRITING loop-back key could route, made explicit here (skill: null,
-# no findings raised or closed by the decision itself) rather than
-# invented silently. Full reasoning in this event's history.jsonl comment.
+# express-implementor wrote the whole feature in one pass: config boundary,
+# Prisma datasource/model/migration, the error taxonomy, boundary validation,
+# rate limiting, password hashing, both modules, app assembly and process
+# entry - Steps 1-3 and 5-10 of the plan. Step 2 landed (schema.prisma +
+# `prisma generate`), which is what resolves TEST_WRITING:B-2 below.
 #
-# TEST_WRITING has delivered what this stage can deliver: 71 of 71 tests
-# authored and executing, every AC001-AC007 with mapped coverage,
-# format:check and check:cycles passing. IMPLEMENTATION Step 2
-# (prisma/schema.prisma + `prisma generate`) is expected to clear all 34
-# residual diagnostics as a side effect of ordinary planned work -
-# IMPLEMENTATION_VERIFICATION must confirm both reach 0, or B-2 reopens.
-blocking_issues: []
+# implementation_report is cited at version 3 - its own front matter's final,
+# actual value - because the doc is overwritten wholesale per revision rather
+# than appended to (unlike the test-generation-report), so its true v1
+# content at this historical point was not separately captured by any commit
+# and cannot be recovered; only the final text this Story settled on exists.
+blocking_issues:
+  - "IMPLEMENTATION:T-1 (MAJOR) - tests/integration/auth-register-password-validation.test.ts carries a case, 'accepts a 12-character password written in a script with no letter case (SC-1 known limitation, EC-6)', that is unsatisfiable: its fixture is 9 Unicode code points against the case's own >=12 precondition, and its expected 201 contradicts SC-1's literal 3-of-4 rule (the fixture's classes - Han, digits, one symbol - resolve to 2 of 4). express-implementor implemented SC-1 literally and did not edit the test. IMPLEMENTATION has no loop-back route to TEST_WRITING for a test defect at this moment; held at BLOCKED pending that route."
 # Derived from history.jsonl: every id whose latest event says RAISED.
-# TEST_WRITING:B-2 moves RAISED -> ACCEPTED (not resolved, not waived - a
-# specific expectation that Step 2 discharges it, checked at
-# IMPLEMENTATION_VERIFICATION). The set drops from 11 to 10.
+# Four close (FR-18, PLAN_REVIEW:p-8, PLAN_REVIEW:p-10, and TEST_WRITING:B-2
+# moves ACCEPTED -> RESOLVED now that Step 2 has actually landed - a legitimate
+# second closing event on an already-closed id, not a re-raise); three open
+# (IMPLEMENTATION:T-1, E-1, G-1). The set holds at 10.
 non_blocking_findings:
-  - id: "SPECIFICATION:FR-18"
-    severity: MAJOR
-    status: RAISED
-    summary: "IMPLEMENTATION owes it: .env.example lines 16-20 still declare JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_TTL and JWT_REFRESH_TTL, which FR-18 requires this Story to remove"
   - id: "IMPACT_ANALYSIS:R-4"
     severity: MAJOR
     status: RAISED
@@ -68,10 +58,6 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "TEST_WRITING precedes IMPLEMENTATION but the schema, migration and compose file arrive in plan steps 2-3, so the tests authored at TEST_WRITING cannot execute until then and must not be gated on a running suite - the actual scope of this gap turned out to be broader; see TEST_WRITING:B-1"
-  - id: "PLAN_REVIEW:p-8"
-    severity: MINOR
-    status: RAISED
-    summary: "IMPLEMENTATION owes it: plan D-10 declares sequence.shuffle on the unit project only and omits sequence from the shared root block, so the harness project and any future tests/*.test.ts inherit no file shuffle that NFR-005 relies on; nil effect today at one harness file"
   - id: "IMPLEMENTATION_PLANNING:R-P2"
     severity: MINOR
     status: RAISED
@@ -80,11 +66,19 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "IMPLEMENTATION_PLANNING owes it: plan v4 raised the findings-triage input to version 2 in the front matter but left the Source Artifacts table at line 143 saying version 1; the file is at version 2, so the human-facing record is the wrong one"
-  - id: "PLAN_REVIEW:p-10"
+  - id: "IMPLEMENTATION:T-1"
+    severity: MAJOR
+    status: RAISED
+    summary: "tests/integration/auth-register-password-validation.test.ts 'accepts a 12-character password written in a script with no letter case' is unsatisfiable: the fixture is 9 code points (its own >=12 precondition throws) and its expected 201 contradicts SC-1's literal 3-of-4 rule (CJK+digit+symbol resolve to 2 classes). express-implementor implemented SC-1 literally and did not edit the test; needs a TEST_WRITING correction"
+  - id: "IMPLEMENTATION:E-1"
     severity: MINOR
     status: RAISED
-    summary: "IMPLEMENTATION_PLANNING owes it: the test DATABASE_URL is resolved in the vitest.config.ts module body, evaluated for every invocation, so under the D-4 fallback an absent .env.test makes process.loadEnvFile() throw ENOENT and fails test:unit and the harness project too; D-4 records two accepted costs where there are three and D-10 still claims unit runs are free of any database dependency"
+    summary: "module-map.md puts the Prisma disconnect in src/server.ts and lets it import src/lib, but eslint.config.js's PRISMA rule blocks **/lib/prisma.* for server.ts with no carve-out; bridged with a one-line src/lib/shutdown.ts re-export. Clean fix is an eslint.config.js carve-out for server.ts (a human change), after which shutdown.ts is deleted"
+  - id: "IMPLEMENTATION:G-1"
+    severity: MINOR
+    status: RAISED
+    summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate and npx prisma validate fail when DATABASE_URL is unset; the generated client cannot be produced on a bare checkout. CI adds a job-level DATABASE_URL and an explicit generate step; no project postinstall was added because it would break npm ci without the variable"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T18:55:49Z
+updated_at: 2026-09-03T19:54:52Z
 completed_at: null
 archived_at: null

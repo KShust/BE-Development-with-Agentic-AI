@@ -95,6 +95,8 @@ Those supplement the table below; they never substitute for a row in it.
 | `npm run audit:check` | dependency advisories against the named exceptions in `.audit-allowlist.json` (network) |
 | `npm run validate:harness` | stage routing, artifact registry, Skill wiring, and workflow state agree |
 | `npm run validate:harness:test` | proves that validator still catches its known defects |
+| `npm run db:test:up` | starts the disposable PostgreSQL for integration tests (`docker compose`, host 5433). Not a check — the setup `npm run test:integration` needs (`persistence-conventions.md` PC-1) |
+| `npm run db:test:down` | stops and removes that database and its volume |
 
 Run them; do not describe them. A step that was not executed is not a passing
 step, and reporting an unrun check as green is prohibited (see Agent Behavior).

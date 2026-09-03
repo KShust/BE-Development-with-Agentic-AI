@@ -5,11 +5,13 @@
 # checklist locally means a green pipeline. NFR-007: the build must pass before
 # a change is considered complete.
 #
-# Not here yet: database-backed integration tests. The strategy is decided
-# (docs/architecture/persistence-conventions.md PC-1 - a `services: postgres`
-# block on port 5433, schema via `prisma migrate deploy`), but the plumbing is
-# owed by the first Story that needs it. Until then this workflow runs everything
-# that needs no database (see tests/README.md).
+# Integration tests run against a GitHub Actions native `services: postgres`
+# instance on host port 5433 (docs/architecture/persistence-conventions.md PC-1).
+# DATABASE_URL is supplied as a job-level environment variable, so CI never reads
+# `.env.test` (plan D-4). It is job-level rather than step-level because
+# `prisma.config.ts` resolves it eagerly (plan D-2), so `prisma generate` needs
+# it too; `tests/support/globalSetup.ts` then applies the committed migrations
+# with `prisma migrate deploy`.
 
 name: CI
 
@@ -31,6 +33,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5433/customer_portal_test
+
+    # Disposable PostgreSQL for the integration tests (persistence-conventions.md
+    # PC-1). Mapped to host port 5433, matching docker-compose.yml and .env.test.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: customer_portal_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d customer_portal_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -48,6 +70,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The Prisma client is generated code, not committed. Every later step that
+      # imports @prisma/client (typecheck, test, build) needs it to exist.
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       # Structural integrity of the agentic harness: stage routing, the artifact
       # registry, Skill wiring, and the workflow state files must agree.
