@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../src/lib/prisma.js';
 import { truncateAll } from '../support/database.js';
-import { registerRequest, uniqueEmail, validPassword } from '../support/api.js';
+import { errorBody, registerRequest, uniqueEmail, validPassword } from '../support/api.js';
 
 beforeEach(async () => {
   await truncateAll();
@@ -30,10 +30,10 @@ describe('POST /api/v1/auth/register — duplicate email (AC-002)', () => {
     expect(second.body).toEqual({
       error: {
         code: 'EMAIL_ALREADY_REGISTERED',
-        message: expect.any(String),
+        message: expect.any(String) as string,
       },
     });
-    expect((second.body.error.message as string).toLowerCase()).toContain('already registered');
+    expect(errorBody(second).error.message.toLowerCase()).toContain('already registered');
 
     const rows = await prisma.user.findMany({ where: { email } });
     expect(rows).toHaveLength(1);
@@ -84,7 +84,7 @@ describe('POST /api/v1/auth/register — duplicate email (AC-002)', () => {
 
     const loser = a.status === 409 ? a : b;
     expect(loser.body).toEqual({
-      error: { code: 'EMAIL_ALREADY_REGISTERED', message: expect.any(String) },
+      error: { code: 'EMAIL_ALREADY_REGISTERED', message: expect.any(String) as string },
     });
     const raw = JSON.stringify(loser.body);
     expect(raw).not.toMatch(/P2002/i);

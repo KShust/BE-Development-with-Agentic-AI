@@ -20,7 +20,7 @@ function expectValidationFailed(res: { status: number; body: unknown }, field: s
     error: { code: string; details: { fieldErrors: Record<string, string[]> } };
   };
   expect(body.error.code).toBe('VALIDATION_FAILED');
-  expect(body.error.details.fieldErrors[field]?.length).toBeGreaterThan(0);
+  expect(body.error.details?.fieldErrors[field]?.length).toBeGreaterThan(0);
 }
 
 describe('POST /api/v1/auth/register — email validation (AC-003)', () => {

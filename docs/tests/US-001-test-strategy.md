@@ -1,10 +1,10 @@
 ---
 artifact_type: test_strategy
 story: US-001
-version: 1
+version: 3
 status: DRAFT
 created_at: 2026-09-03T13:55:00Z
-updated_at: 2026-09-03T13:55:00Z
+updated_at: 2026-09-03T21:48:00Z
 produced_by: test-writer
 inputs:
   - path: docs/stories/US-001-register-customer.md
@@ -25,17 +25,23 @@ inputs:
     version: 4
   - path: docs/reviews/plans/US-001-plan-review.md
     version: 4
-supersedes: null
+supersedes: docs/tests/US-001-test-strategy.md@2
 ---
 
 # Test Strategy: Customer Registration (US-001)
 
-**This stage returns `BLOCKED`.** The strategy below is complete and the test
-source it describes is written, but none of it can compile, lint, or run yet —
-see `docs/evidence/US-001-test-generation-report.md` for the evidence and the
-blocking finding. This document, the paired AC-test matrix, and the test source
-files are the deliverable that a human decision unblocks; nothing here needs to
-be redone once it is.
+**Revision 3 (2026-09-03) — `IMPLEMENTATION:T-1` correction; this stage returns
+`PASS`.** The only change from v2 is in *Negative scenarios* (AC-004): the
+caseless-script password case now records SC-1's named limitation as a rejection
+(`400`), matching the corrected
+`tests/integration/auth-register-password-validation.test.ts` and the paired
+AC-test matrix row v3. Evidence and the full T-1 write-up are in
+`docs/evidence/US-001-test-generation-report.md` (v3). Everything else below is
+unchanged from v2, including the `TEST_WRITING:B-1` / `B-2` history — both were
+settled at `IMPLEMENTATION` (`prisma/schema.prisma` written and `prisma
+generate` run; `npm run typecheck` and `npm run lint` reach 0). The v2 banner
+that stood here said this stage returned `BLOCKED`; that was true at attempts 1–2
+and is retained only as history by the report.
 
 ## Scope
 
@@ -75,9 +81,7 @@ Strategy"), which this document does not re-derive but implements:
   row, `X-Request-Id` present.
 - Boundary-valid inputs that must succeed: email at exactly 254 characters
   (VR-3), password at exactly 12 and exactly 128 characters (VR-6), a
-  12-code-point password in a caseless script satisfying 3-of-4 classes via
-  digit/symbol/other (SC-1's own named limitation, not violated by this case),
-  a 12-code-point Cyrillic password proving the length is counted in code
+  12-code-point Cyrillic password proving the length is counted in code
   points, not bytes or UTF-16 units.
 
 ## Negative scenarios
@@ -85,7 +89,9 @@ Strategy"), which this document does not re-derive but implements:
 - AC-002: duplicate email (service-check path).
 - AC-003: missing, non-string, malformed, and over-length email.
 - AC-004: missing, non-string, under-length, over-length, and
-  under-composed password.
+  under-composed password — the last including SC-1's named limitation: a
+  caseless-script password (Han + digits, 2 of the 4 classes) that is rejected
+  however strong it is.
 - VR-9: unknown body property.
 - VR-10: wrong/missing `Content-Type` on a body-bearing request (`415`);
   oversized body (`413`).
@@ -187,14 +193,22 @@ approved artifacts do not mention, not a stylistic preference.
 
 ## Known limitations
 
-1. **Nothing in this suite compiles, lints, or runs yet.** Every test file
-   references a production export that does not exist (every module this
-   Story touches is currently a one-line placeholder). This is not a defect in
-   the tests — `npm run typecheck` reports exactly, and only, the twelve
-   unresolved-export errors this causes, with no other diagnostic — but it is
-   a genuine gap the approved Implementation Plan under-scoped. See the
-   Test Generation Report for the full evidence and the resulting `BLOCKED`
-   verdict.
+1. **The suite runs; one module's worth of it does not yet type-check.**
+   Revision 1 of this strategy recorded that nothing compiled, linted, or ran.
+   The human decision of 2026-09-03 (commit `4a90204`) authorized
+   signature-only production stubs, and with eight of the nine imported
+   modules stubbed, **all 71 tests now execute and fail for the correct
+   reason** — the red phase this stage exists to produce.
+
+   What remains is one file. `src/lib/prisma.ts` cannot be stubbed, because
+   `PrismaClient` is a *generated* type that does not exist until
+   `prisma generate` runs against a real schema — plan Step 2, which belongs
+   to IMPLEMENTATION. Typing it `any`/`unknown` or hand-writing a substitute
+   are both forbidden by the same authorization that permits the stubs. That
+   leaves 4 `typecheck` errors and 30 `lint` errors, **all four and all thirty
+   attributable to that single file**, and it is why this stage still returns
+   `BLOCKED`. See the Test Generation Report for the evidence and the three
+   resolution options put to a human.
 2. **Two service-layer collaborator interfaces are assumed, not specified.**
    No approved artifact fixes an export or dependency-injection shape for
    `auth.service.ts` or `users.service.ts` beyond the responsibilities the

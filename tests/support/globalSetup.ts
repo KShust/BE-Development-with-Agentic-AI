@@ -20,7 +20,7 @@
 
 import { execFileSync } from 'node:child_process';
 
-export default async function setup(): Promise<void> {
+export default function setup(): void {
   try {
     execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
       stdio: 'pipe',

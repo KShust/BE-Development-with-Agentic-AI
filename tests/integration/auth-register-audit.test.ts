@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { logger } from '../../src/lib/logger.js';
 import { truncateAll } from '../support/database.js';
-import { registerRequest, uniqueEmail, validPassword } from '../support/api.js';
+import { customerBody, registerRequest, uniqueEmail, validPassword } from '../support/api.js';
 
 beforeEach(async () => {
   await truncateAll();
@@ -37,7 +37,7 @@ describe('POST /api/v1/auth/register — audit logging (AC-007)', () => {
 
     const payload = auditCall?.[0] as Record<string, unknown>;
     expect(Object.keys(payload).sort()).toEqual(['event', 'requestId', 'userId']);
-    expect(payload.userId).toBe(res.body.id);
+    expect(payload.userId).toBe(customerBody(res).id);
     expect(payload.requestId).toEqual(expect.any(String));
 
     const raw = JSON.stringify(payload);

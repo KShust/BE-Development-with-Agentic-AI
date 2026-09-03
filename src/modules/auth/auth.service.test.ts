@@ -48,7 +48,7 @@ function fakeDeps(overrides: Partial<Record<string, unknown>> = {}) {
 describe('auth.service register — orchestration', () => {
   it('hashes the password and creates the account on the happy path (AC-001, FR-10)', async () => {
     const deps = fakeDeps();
-    const service = createAuthService(deps as never);
+    const service = createAuthService(deps);
 
     const result = await service.register(
       { email: 'customer@example.com', password: 'aValidPassw0rd!' },
@@ -69,7 +69,7 @@ describe('auth.service register — orchestration', () => {
         createCustomer: vi.fn(),
       },
     });
-    const service = createAuthService(deps as never);
+    const service = createAuthService(deps);
 
     await expect(
       service.register(
@@ -89,7 +89,7 @@ describe('auth.service register — orchestration', () => {
         createCustomer: vi.fn().mockRejectedValue(new ConflictError('EMAIL_ALREADY_REGISTERED')),
       },
     });
-    const service = createAuthService(deps as never);
+    const service = createAuthService(deps);
 
     await expect(
       service.register(
@@ -102,7 +102,7 @@ describe('auth.service register — orchestration', () => {
 
   it('emits a user.registered audit event carrying only event, userId and requestId, after account creation (AC-007, FR-12)', async () => {
     const deps = fakeDeps();
-    const service = createAuthService(deps as never);
+    const service = createAuthService(deps);
 
     await service.register(
       { email: 'customer@example.com', password: 'aValidPassw0rd!' },
@@ -118,20 +118,21 @@ describe('auth.service register — orchestration', () => {
 
   it('does not include the email or any personal data in the audit event (SC-9)', async () => {
     const deps = fakeDeps();
-    const service = createAuthService(deps as never);
+    const service = createAuthService(deps);
 
     await service.register(
       { email: 'customer@example.com', password: 'aValidPassw0rd!' },
       { requestId: 'req-4' },
     );
 
-    const [payload] = vi.mocked(deps.auditLog).mock.calls[0] ?? [];
+    const auditCalls = vi.mocked(deps.auditLog).mock.calls as unknown[][];
+    const payload = auditCalls[0]?.[0];
     expect(JSON.stringify(payload)).not.toContain('customer@example.com');
   });
 
   it('logs a failed audit write as an error and still returns the created account (EC-4)', async () => {
     const deps = fakeDeps({ auditLog: vi.fn().mockRejectedValue(new Error('sink unavailable')) });
-    const service = createAuthService(deps as never);
+    const service = createAuthService(deps);
 
     const result = await service.register(
       { email: 'customer@example.com', password: 'aValidPassw0rd!' },

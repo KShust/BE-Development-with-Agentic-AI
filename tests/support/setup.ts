@@ -12,3 +12,13 @@ if (process.env.NODE_ENV !== 'test') {
       'Unset NODE_ENV (Vitest defaults it to "test") and run "npm run test".',
   );
 }
+
+// Unit and harness tests import the configuration boundary (src/config/env.ts)
+// transitively but never reach a database. Give the two required-without-default
+// variables a harmless placeholder so importing that module does not fail-fast
+// in a run that has no real environment. An integration run has already set
+// DATABASE_URL from .env.test in vitest.config.ts before this file loads, so the
+// `||=` leaves the real value in place; the placeholder only fills the gap a
+// unit run would otherwise hit (PLAN_REVIEW:p-10).
+process.env.DATABASE_URL ||= 'postgresql://placeholder:placeholder@localhost:5433/placeholder';
+process.env.CORS_ALLOWED_ORIGINS ||= 'http://localhost:3000';

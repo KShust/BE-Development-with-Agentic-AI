@@ -20,7 +20,7 @@ function expectValidationFailed(res: { status: number; body: unknown }, field: s
     error: { code: string; details: { fieldErrors: Record<string, string[]> } };
   };
   expect(body.error.code).toBe('VALIDATION_FAILED');
-  expect(body.error.details.fieldErrors[field]?.length).toBeGreaterThan(0);
+  expect(body.error.details?.fieldErrors[field]?.length).toBeGreaterThan(0);
 }
 
 describe('POST /api/v1/auth/register — password policy (AC-004, SC-1)', () => {
@@ -63,19 +63,20 @@ describe('POST /api/v1/auth/register — password policy (AC-004, SC-1)', () => 
     expectValidationFailed(res, 'password');
   });
 
-  it('accepts a 12-character password written in a script with no letter case (SC-1 known limitation, EC-6)', async () => {
-    // Digits + "anything else" (punctuation) = 2 of 4 classes is still
-    // insufficient (3-of-4 required) even for a caseless script — SC-1
-    // states the limitation and this Story implements the policy exactly,
-    // without carving out an exception. This password satisfies 3 classes
-    // (digit, symbol, and "other" via the CJK characters) plus length, so it
-    // is a positive case, not the excluded one.
-    const password = '中文密码1234!'; // 10 CJK chars + 4 ASCII = 14 code points, digit+symbol+other classes.
+  it('rejects a caseless-script password that can reach only 2 of the 4 classes (SC-1 known limitation, EC-6)', async () => {
+    // SC-1's four classes are lowercase (Ll), uppercase (Lu), digit, and
+    // "anything else" — punctuation, symbol, or space — which is ONE class,
+    // not several. A script without letter case (here: Han, category Lo)
+    // contributes only to "anything else", so Han + digits spans just 2 of
+    // the 4 classes. SC-1 names this limitation explicitly: such a password
+    // "is rejected however strong it is". This pins that documented behaviour;
+    // the Story implements the policy exactly and carves out no exception.
+    const password = '中文密码短语加密内容1234'; // 14 code points: 10 Han (anything-else) + 4 digits.
     expect([...password].length).toBeGreaterThanOrEqual(12);
 
-    const res = await registerRequest().send({ email: uniqueEmail('p-unicode'), password });
+    const res = await registerRequest().send({ email: uniqueEmail('p-caseless'), password });
 
-    expect(res.status).toBe(201);
+    expectValidationFailed(res, 'password');
   });
 
   it('counts password length in Unicode code points, not UTF-16 code units or bytes (SC-1)', async () => {

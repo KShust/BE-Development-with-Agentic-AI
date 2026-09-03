@@ -10,7 +10,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { truncateAll } from '../support/database.js';
-import { registerRequest, uniqueEmail, validPassword } from '../support/api.js';
+import { errorBody, registerRequest, uniqueEmail, validPassword } from '../support/api.js';
 
 beforeEach(async () => {
   await truncateAll();
@@ -25,9 +25,9 @@ describe('POST /api/v1/auth/register — envelope and 400/413/415 shapes', () =>
     });
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('VALIDATION_FAILED');
-    expect(res.body.error.details.fieldErrors.admin).toBeDefined();
-    expect(res.body.error.details.fieldErrors.admin.length).toBeGreaterThan(0);
+    expect(errorBody(res).error.code).toBe('VALIDATION_FAILED');
+    expect(errorBody(res).error.details?.fieldErrors.admin).toBeDefined();
+    expect(errorBody(res).error.details?.fieldErrors.admin?.length).toBeGreaterThan(0);
   });
 
   it('e-2 shape 1 — a JSON array body is 400, naming both email and password as missing (DESIGN_REVIEW:e-2, R-4)', async () => {
@@ -36,25 +36,25 @@ describe('POST /api/v1/auth/register — envelope and 400/413/415 shapes', () =>
       .send([] as never);
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('VALIDATION_FAILED');
-    expect(res.body.error.details.fieldErrors.email?.length).toBeGreaterThan(0);
-    expect(res.body.error.details.fieldErrors.password?.length).toBeGreaterThan(0);
+    expect(errorBody(res).error.code).toBe('VALIDATION_FAILED');
+    expect(errorBody(res).error.details?.fieldErrors.email?.length).toBeGreaterThan(0);
+    expect(errorBody(res).error.details?.fieldErrors.password?.length).toBeGreaterThan(0);
   });
 
   it('e-2 shape 2 — a bodyless POST with application/json is 400 VALIDATION_FAILED, not 415 (DESIGN_REVIEW:e-2)', async () => {
     const res = await registerRequest().set('Content-Type', 'application/json');
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('VALIDATION_FAILED');
-    expect(res.body.error.details.fieldErrors.email?.length).toBeGreaterThan(0);
-    expect(res.body.error.details.fieldErrors.password?.length).toBeGreaterThan(0);
+    expect(errorBody(res).error.code).toBe('VALIDATION_FAILED');
+    expect(errorBody(res).error.details?.fieldErrors.email?.length).toBeGreaterThan(0);
+    expect(errorBody(res).error.details?.fieldErrors.password?.length).toBeGreaterThan(0);
   });
 
   it('e-2 shape 3 — a bodyless POST with no Content-Type is 400 VALIDATION_FAILED, not 415 (DESIGN_REVIEW:e-2, Error Handling table)', async () => {
     const res = await registerRequest();
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('VALIDATION_FAILED');
+    expect(errorBody(res).error.code).toBe('VALIDATION_FAILED');
   });
 
   it('rejects a request with a body and a non-JSON Content-Type as 415 (VR-10, FR-22)', async () => {
@@ -64,7 +64,7 @@ describe('POST /api/v1/auth/register — envelope and 400/413/415 shapes', () =>
 
     expect(res.status).toBe(415);
     expect(res.body).toEqual({
-      error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: expect.any(String) },
+      error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: expect.any(String) as string },
     });
   });
 
@@ -76,7 +76,7 @@ describe('POST /api/v1/auth/register — envelope and 400/413/415 shapes', () =>
       );
 
     expect(res.status).toBe(415);
-    expect(res.body.error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
+    expect(errorBody(res).error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
   });
 
   it('rejects a body exceeding the 10kb limit with 413 (VR-10, FR-14, SC-5)', async () => {
@@ -93,7 +93,7 @@ describe('POST /api/v1/auth/register — envelope and 400/413/415 shapes', () =>
 
     expect(res.status).toBe(413);
     expect(res.body).toEqual({
-      error: { code: 'PAYLOAD_TOO_LARGE', message: expect.any(String) },
+      error: { code: 'PAYLOAD_TOO_LARGE', message: expect.any(String) as string },
     });
   });
 
@@ -103,7 +103,7 @@ describe('POST /api/v1/auth/register — envelope and 400/413/415 shapes', () =>
       .send('{not valid json');
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('MALFORMED_JSON');
-    expect(res.body.error.details).toBeUndefined();
+    expect(errorBody(res).error.code).toBe('MALFORMED_JSON');
+    expect(errorBody(res).error.details).toBeUndefined();
   });
 });

@@ -60,3 +60,33 @@ export function expectRequestIdHeader(res: { headers: Record<string, unknown> })
   expect(res.headers['x-request-id']).toEqual(expect.any(String));
   expect((res.headers['x-request-id'] as string).length).toBeGreaterThan(0);
 }
+
+/**
+ * The AC-6 error envelope every non-2xx response on this operation carries
+ * (docs/architecture/api-conventions.md AC-6). Supertest types `res.body` as
+ * `any`; naming the shape here keeps that `any` from spreading through every
+ * assertion, and matches the pattern the validation files already use.
+ */
+export interface ErrorBody {
+  error: {
+    code: string;
+    message: string;
+    details?: { fieldErrors: Record<string, string[] | undefined> };
+  };
+}
+
+/** The four-field Customer DTO the 201 carries (US-001 api-design, Responses). */
+export interface CustomerDto {
+  id: string;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
+export function errorBody(res: { body: unknown }): ErrorBody {
+  return res.body as ErrorBody;
+}
+
+export function customerBody(res: { body: unknown }): CustomerDto {
+  return res.body as CustomerDto;
+}

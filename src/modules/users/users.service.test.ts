@@ -19,7 +19,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { ConflictError } from '../../lib/errors.js';
-import { createUsersService } from './users.service.js';
+import { createUsersService, type UsersServiceRepository } from './users.service.js';
 
 function fakeRepository(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -30,6 +30,12 @@ function fakeRepository(overrides: Partial<Record<string, unknown>> = {}) {
       role: 'CUSTOMER',
       createdAt: new Date('2026-09-03T00:00:00.000Z'),
     }),
+    // IMPLEMENTATION opens the BR-5/PC-9 transaction through the repository
+    // (db-design "Transaction and concurrency"); the fake runs the callback
+    // inline. Updating this collaborator shape to match the real wiring is the
+    // routine test-implementation sync the file header sanctions — no assertion
+    // below changes.
+    transaction: vi.fn<UsersServiceRepository['transaction']>((fn) => fn(undefined)),
     ...overrides,
   };
 }
@@ -37,7 +43,7 @@ function fakeRepository(overrides: Partial<Record<string, unknown>> = {}) {
 describe('users.service createCustomer (BR-1, BR-5, BR-6, PC-9)', () => {
   it('creates exactly one account for a new email (FR-2)', async () => {
     const repository = fakeRepository();
-    const service = createUsersService(repository as never);
+    const service = createUsersService(repository);
 
     const result = await service.createCustomer({
       email: 'customer@example.com',
@@ -52,7 +58,7 @@ describe('users.service createCustomer (BR-1, BR-5, BR-6, PC-9)', () => {
     const repository = fakeRepository({
       findByEmail: vi.fn().mockResolvedValue({ id: 'existing' }),
     });
-    const service = createUsersService(repository as never);
+    const service = createUsersService(repository);
 
     await expect(
       service.createCustomer({ email: 'dup@example.com', passwordHash: '$argon2id$fake' }),
@@ -66,7 +72,7 @@ describe('users.service createCustomer (BR-1, BR-5, BR-6, PC-9)', () => {
       meta: { target: ['email'] },
     });
     const repository = fakeRepository({ create: vi.fn().mockRejectedValue(p2002) });
-    const service = createUsersService(repository as never);
+    const service = createUsersService(repository);
 
     await expect(
       service.createCustomer({ email: 'race@example.com', passwordHash: '$argon2id$fake' }),
@@ -79,7 +85,7 @@ describe('users.service createCustomer (BR-1, BR-5, BR-6, PC-9)', () => {
       meta: { target: ['email'] },
     });
     const repository = fakeRepository({ create: vi.fn().mockRejectedValue(p2002) });
-    const service = createUsersService(repository as never);
+    const service = createUsersService(repository);
 
     await expect(
       service.createCustomer({ email: 'race@example.com', passwordHash: '$argon2id$fake' }),
@@ -94,7 +100,7 @@ describe('users.service createCustomer (BR-1, BR-5, BR-6, PC-9)', () => {
 
   it('selects only id, email, role and createdAt on insert — never password_hash (SR-4, PC-8)', async () => {
     const repository = fakeRepository();
-    const service = createUsersService(repository as never);
+    const service = createUsersService(repository);
 
     const result = await service.createCustomer({
       email: 'customer@example.com',

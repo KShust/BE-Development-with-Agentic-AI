@@ -8,55 +8,42 @@ current_stage: TEST_WRITING
 previous_stage: TEST_WRITING
 last_completed_stage: HUMAN_PLAN_APPROVAL
 status: BLOCKED
-attempt: 1
+attempt: 2
 last_invoked_skill: test-writer
 last_result:
   verdict: BLOCKED
   stage: TEST_WRITING
-  recorded_at: 2026-09-03T13:58:00Z
+  recorded_at: 2026-09-03T18:38:12Z
 last_artifacts:
   - type: test_strategy
     path: docs/tests/US-001-test-strategy.md
-    version: 1
+    version: 3
   - type: ac_test_matrix
     path: docs/tests/US-001-ac-test-matrix.md
-    version: 1
+    version: 3
   - type: test_generation_report
     path: docs/evidence/US-001-test-generation-report.md
-    version: 1
+    version: 3
 pending_human_gate: null
-# current_stage does not move on BLOCKED (state-schema.md: "current_stage
-# unchanged, status := BLOCKED, attempt unchanged: the stage was entered once
-# and has not been re-entered"). previous_stage records the stage this
-# transition started from, which was already TEST_WRITING - the HUMAN_APPROVED
-# gate event that put the workflow there is the entry before this one in
-# history.jsonl, not this one.
+# TEST_WRITING:B-1 is RESOLVED by the 2026-09-03 human decision (commit
+# 4a90204): eight of the nine imported production modules now carry
+# signature-only stubs, and the suite moved from 0 of 71 tests executing to
+# 71 of 71, typecheck 16->4 and lint 173->30. The residual is a different root
+# cause - src/lib/prisma.ts cannot be stubbed at all, because PrismaClient is
+# a *generated* type, not a missing export - raised here as TEST_WRITING:B-2.
+# current_stage stays TEST_WRITING and attempt becomes 2: this is a genuine
+# re-entry (test-writer ran again, from a routed continue, after the stub
+# authorization landed), distinct from a same-attempt repeat.
 #
-# test-writer produced all three of its output artifacts - the strategy, the
-# AC-test matrix, and the generation report - and all fifteen planned test
-# source files (tests/support/*, seven tests/integration/auth-register-*.test.ts
-# files, and five *.test.ts files beside the source they cover). None of it is
-# incomplete or wrong: every Acceptance Criterion has mapped coverage
-# (docs/tests/US-001-ac-test-matrix.md, Traceability check), and every test
-# traces to an approved artifact. The verdict is BLOCKED because none of it can
-# compile, lint, or run - see blocking_issues below and the full evidence in
-# docs/evidence/US-001-test-generation-report.md.
+# These three artifacts already carry their v3 content (the ac-test-matrix
+# and strategy revisions this attempt made, plus test-generation-report's
+# "Revisions 1-2" retained section) - no earlier intermediate snapshot was
+# captured by a commit, so nothing is lost, only the mid-point view.
 blocking_issues:
-  - "TEST_WRITING:B-1 (CRITICAL) - every one of the 15 test files this stage wrote fails npm run typecheck (12 TS2305/TS2307 errors, one per unresolved production export) and npm run lint (173 @typescript-eslint no-unsafe-* errors downstream of the same 12). Root cause: every production module this Story touches (src/app.ts, src/lib/*.ts, src/middleware/*.ts, src/modules/*/*.ts) is still the one-line placeholder it was before SPECIFICATION ran, and eslint.config.js's type-checked ESLint configuration (tseslint.configs.recommendedTypeChecked, file-wide) carries no carve-out for a reference to a not-yet-implemented export - unlike the carve-outs it already grants **/*.test.ts and tests/**/*.ts for no-restricted-imports, no-restricted-properties, no-non-null-assertion and max-lines-per-function. IMPLEMENTATION_PLANNING:R-P1 flagged only that the database-backed integration suite cannot EXECUTE before plan Steps 2-3 land; it did not anticipate that literally every test file, unit and integration alike, fails to even COMPILE before Steps 1-2 and 5-10 land. .claude/hooks/validate-quick.py already blocked three Writes on this in real time during this stage, before this analysis existed to explain why. No key in TEST_WRITING's loop_back map (docs/workflow/stage-map.yaml) fits: the tests are not the defect (re-running TEST_WRITING reproduces the identical failure) and no Specification/API design/database design is invalid. Two resolutions are recorded in docs/evidence/US-001-test-generation-report.md \"Blocking issue, in full\" - recommended: extend eslint.config.js's existing **/*.test.ts / tests/**/*.ts carve-out to the no-unsafe-* rule family, alongside the four rules already turned off there. This is an explicit human decision (AGENTS.md \"Changing a check is a human decision\"); test-writer has no authority to make it and no production file it may edit to route around it (Constraints: \"Do not modify production source files\")."
-# Derived from history.jsonl: every id whose latest event says RAISED. The set
-# grows from 10 to 11: TEST_WRITING:B-1 is newly RAISED by this event. Nothing
-# closed - test-writer's result envelope reported no findings resolved, and a
-# BLOCKED verdict closes nothing by construction (state-schema.md, Finding
-# lifecycle: a closure rides on a Skill result envelope, and this one made no
-# closing claim).
-#
-# TEST_WRITING's own two owed findings, IMPACT_ANALYSIS:R-4 and
-# DESIGN_REVIEW:e-2, are NOT resolved by this event either, despite full test
-# coverage existing for both (docs/tests/US-001-ac-test-matrix.md, "Cross-
-# cutting: envelope" section) - resolving a finding means the behavior it
-# describes was verified working, and nothing in this repository can execute
-# yet to verify that. They stay RAISED, owed to the re-run of this stage once
-# TEST_WRITING:B-1 is resolved and the same tests can actually pass.
+  - "TEST_WRITING:B-2 (CRITICAL) - src/lib/prisma.ts cannot be given a signature-only stub because PrismaClient is a generated type, absent until `prisma generate` runs against the schema plan Step 2 writes. Typing it `any`/`unknown` or hand-writing a substitute are both forbidden by the same stub authorization that resolved B-1; the schema is IMPLEMENTATION's work, not TEST_WRITING's. 100% of the 4 residual typecheck and 30 residual lint errors trace to this one file. No TEST_WRITING loop-back key fits: re-running this stage reproduces the identical failure, and no upstream design is invalid. This needs a human decision on how TEST_WRITING should proceed before IMPLEMENTATION has run."
+# Derived from history.jsonl: every id whose latest event says RAISED.
+# TEST_WRITING:B-1 closes (RESOLVED) and TEST_WRITING:B-2 opens (RAISED) in
+# the same event - the set holds at 11, one id swapped for another.
 non_blocking_findings:
   - id: "SPECIFICATION:FR-18"
     severity: MAJOR
@@ -98,11 +85,11 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "IMPLEMENTATION_PLANNING owes it: the test DATABASE_URL is resolved in the vitest.config.ts module body, evaluated for every invocation, so under the D-4 fallback an absent .env.test makes process.loadEnvFile() throw ENOENT and fails test:unit and the harness project too; D-4 records two accepted costs where there are three and D-10 still claims unit runs are free of any database dependency"
-  - id: "TEST_WRITING:B-1"
+  - id: "TEST_WRITING:B-2"
     severity: CRITICAL
     status: RAISED
-    summary: "every test file this stage wrote fails npm run typecheck (12 errors) and npm run lint (173 errors) because eslint.config.js's no-unsafe-* rules carry no test-file carve-out for a not-yet-implemented production export; needs an explicit human decision, see blocking_issues above and docs/evidence/US-001-test-generation-report.md"
+    summary: "src/lib/prisma.ts cannot be given a signature-only stub because PrismaClient is a generated type absent until prisma generate runs against the plan Step 2 schema; any/unknown and a hand-written substitute are both forbidden by the stub authorization, and the schema belongs to IMPLEMENTATION - 100% of the 4 residual typecheck and 30 residual lint errors trace to this one file"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T13:58:00Z
+updated_at: 2026-09-03T18:38:12Z
 completed_at: null
 archived_at: null

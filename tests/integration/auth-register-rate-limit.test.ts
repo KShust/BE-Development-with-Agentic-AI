@@ -36,7 +36,7 @@ describe('POST /api/v1/auth/register — rate limit (SC-3: 10/hour/IP)', () => {
 
     expect(eleventh.status).toBe(429);
     expect(eleventh.body).toEqual({
-      error: { code: 'RATE_LIMIT_EXCEEDED', message: expect.any(String) },
+      error: { code: 'RATE_LIMIT_EXCEEDED', message: expect.any(String) as string },
     });
 
     const row = await prisma.user.findUnique({ where: { email: blockedEmail } });

@@ -1,10 +1,10 @@
 ---
 artifact_type: ac_test_matrix
 story: US-001
-version: 1
+version: 3
 status: DRAFT
 created_at: 2026-09-03T13:55:00Z
-updated_at: 2026-09-03T13:55:00Z
+updated_at: 2026-09-03T21:35:00Z
 produced_by: test-writer
 inputs:
   - path: docs/specifications/US-001-spec.md
@@ -19,7 +19,7 @@ inputs:
     version: 2
   - path: docs/plans/US-001-implementation-plan.md
     version: 4
-supersedes: null
+supersedes: docs/tests/US-001-ac-test-matrix.md@2
 ---
 
 # Acceptance-Criterion → Test Matrix: Customer Registration (US-001)
@@ -77,7 +77,7 @@ scenario (NFR-006).
 | 11 chars (below minimum, EC-6) | Integration | tests/integration/auth-register-password-validation.test.ts | rejects a password one character short of the 12-character minimum (VR-6, EC-6) | `400 VALIDATION_FAILED` |
 | 129 chars (above maximum, EC-6) | Integration | tests/integration/auth-register-password-validation.test.ts | rejects a password one character past the 128-character maximum (VR-6, EC-6) | `400 VALIDATION_FAILED` |
 | Fewer than 3 of 4 classes | Integration | tests/integration/auth-register-password-validation.test.ts | rejects a password satisfying fewer than 3 of the 4 character classes (VR-6) | `400 VALIDATION_FAILED` |
-| Caseless-script password, 3-of-4 via digit/symbol/other (EC-6) | Integration | tests/integration/auth-register-password-validation.test.ts | accepts a 12-character password written in a script with no letter case (SC-1 known limitation, EC-6) | `201` |
+| Caseless-script password reaching only 2 of 4 classes (SC-1 known limitation, EC-6) | Integration | tests/integration/auth-register-password-validation.test.ts | rejects a caseless-script password that can reach only 2 of the 4 classes (SC-1 known limitation, EC-6) | `400 VALIDATION_FAILED`, `fieldErrors.password` |
 | Unicode code-point counting | Integration | tests/integration/auth-register-password-validation.test.ts | counts password length in Unicode code points, not UTF-16 code units or bytes (SC-1) | `201` at 12 code points |
 | No password echo on this path | Integration | tests/integration/auth-register-password-validation.test.ts | never echoes the submitted password in a validation error (SR-3, SC-9) | body excludes submitted password |
 
@@ -128,7 +128,7 @@ covered here.
 | Root-level `invalid_type` → both fields (unit) | Unit | src/middleware/errorHandler.test.ts | keys a root-level (non-object body) failure onto both required fields, not left empty (IMPACT_ANALYSIS:R-4, DESIGN_REVIEW:e-2) | `fieldErrors.email` and `.password` populated |
 | `fieldErrors` never empty (unit, VR-11) | Unit | src/middleware/errorHandler.test.ts | never sends an empty fieldErrors object for any ZodError (VR-11, contract minProperties: 1) | non-empty object |
 | No password echo (unit) | Unit | src/middleware/errorHandler.test.ts | never echoes a submitted password value in message or details (SR-3, SC-9) | body excludes plaintext |
-| DomainError → status/code mapping (unit, AD-6) | Unit | src/middleware/errorHandler.test.ts | maps a domain error carrying %o to status %i with code %s (parametrized: Conflict/UnsupportedMediaType/PayloadTooLarge/TooManyRequests/Validation) | status+code per AD-6 |
+| DomainError → status/code mapping (unit, AD-6) | Unit | src/middleware/errorHandler.test.ts | maps a domain error carrying %s to status %i (parametrized: EMAIL_ALREADY_REGISTERED/UNSUPPORTED_MEDIA_TYPE/PAYLOAD_TOO_LARGE/RATE_LIMIT_EXCEEDED/MALFORMED_JSON) | status+code per AD-6 |
 | MALFORMED_JSON omits details (unit) | Unit | src/middleware/errorHandler.test.ts | omits details entirely for MALFORMED_JSON rather than sending it empty (AC-11, Error Handling table) | `details` undefined |
 | Unmapped error → generic 500 (unit) | Unit | src/middleware/errorHandler.test.ts | returns a generic 500 body for an unmapped error, leaking no internals (SC-9, SR-6) | `500 INTERNAL_ERROR`, no internals |
 | 415-vs-400 split, body + wrong type (unit) | Unit | src/middleware/validateRequest.test.ts | rejects a request with a body and a non-JSON Content-Type as 415, before the schema runs | `next(UnsupportedMediaTypeError)` |

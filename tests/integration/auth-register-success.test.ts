@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../src/lib/prisma.js';
 import { truncateAll } from '../support/database.js';
 import {
+  customerBody,
   expectNoCredentialFields,
   expectNoPlaintextLeak,
   expectRequestIdHeader,
@@ -34,12 +35,12 @@ describe('POST /api/v1/auth/register — success (AC-001)', () => {
     const res = await registerRequest().send({ email, password });
 
     expect(res.status).toBe(201);
-    expect(Object.keys(res.body).sort()).toEqual(['createdAt', 'email', 'id', 'role']);
-    expect(res.body.email).toBe(email);
-    expect(res.body.role).toBe('CUSTOMER');
-    expect(typeof res.body.id).toBe('string');
-    expect(res.body.id.length).toBeGreaterThan(0);
-    expect(new Date(res.body.createdAt).toISOString()).toBe(res.body.createdAt);
+    expect(Object.keys(customerBody(res)).sort()).toEqual(['createdAt', 'email', 'id', 'role']);
+    expect(customerBody(res).email).toBe(email);
+    expect(customerBody(res).role).toBe('CUSTOMER');
+    expect(typeof customerBody(res).id).toBe('string');
+    expect(customerBody(res).id.length).toBeGreaterThan(0);
+    expect(new Date(customerBody(res).createdAt).toISOString()).toBe(customerBody(res).createdAt);
   });
 
   it('sets role to CUSTOMER (FR-3, SC-2)', async () => {
@@ -48,7 +49,7 @@ describe('POST /api/v1/auth/register — success (AC-001)', () => {
       password: validPassword(),
     });
 
-    expect(res.body.role).toBe('CUSTOMER');
+    expect(customerBody(res).role).toBe('CUSTOMER');
   });
 
   it('returns X-Request-Id on the success response (AC-9, FR-15, NFR-010)', async () => {
@@ -88,7 +89,7 @@ describe('POST /api/v1/auth/register — success (AC-001)', () => {
     const res = await registerRequest().send({ email: submitted, password: validPassword() });
 
     expect(res.status).toBe(201);
-    expect(res.body.email).toBe(base.toLowerCase());
+    expect(customerBody(res).email).toBe(base.toLowerCase());
     const row = await prisma.user.findUnique({ where: { email: base.toLowerCase() } });
     expect(row).not.toBeNull();
   });
@@ -110,7 +111,7 @@ describe('POST /api/v1/auth/register — success (AC-001)', () => {
     const res = await registerRequest().send({ email, password: validPassword() });
 
     expect(res.status).toBe(201);
-    expect(res.body.email).toBe(email);
+    expect(customerBody(res).email).toBe(email);
   });
 
   it('accepts a password at exactly the 12-character minimum (VR-6)', async () => {
