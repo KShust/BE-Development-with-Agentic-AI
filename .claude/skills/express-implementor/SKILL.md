@@ -127,7 +127,8 @@ Do not select another Story automatically.
 
 - Workflow / stage / loop-back keys: `docs/workflow/stage-map.yaml`
   (`IMPLEMENTATION`; loop_back keys `partial` → `IMPLEMENTATION`,
-  `blocked_by_plan` → `IMPLEMENTATION_PLANNING`).
+  `blocked_by_plan` → `IMPLEMENTATION_PLANNING`,
+  `changes_required_tests` → `TEST_WRITING`).
 - Artifact paths: `docs/workflow/artifact-paths.yaml` — **authoritative**.
   Resolve every path from its registry key. Paths shown are illustrative.
 - Status vocabulary: `docs/workflow/artifact-lifecycle.md`.
@@ -922,7 +923,12 @@ result:
 - `CHANGES_REQUIRED` — implementation is incomplete but progressing and no
   upstream artifact is at fault → `loop_back_stage: IMPLEMENTATION`
   (key `partial`); or the plan itself is infeasible as written →
-  `loop_back_stage: IMPLEMENTATION_PLANNING` (key `blocked_by_plan`).
+  `loop_back_stage: IMPLEMENTATION_PLANNING` (key `blocked_by_plan`); or an
+  authored test is itself defective — unsatisfiable as written, or contradicting
+  an approved artifact — and this Skill may not edit it →
+  `loop_back_stage: TEST_WRITING` (key `changes_required_tests`). Use the last
+  only for a defect in the test; never to avoid implementing behaviour a correct
+  test requires.
 - `BLOCKED` — a precondition failed, an authoritative artifact conflict exists,
   a security-sensitive Open Decision is unresolved, or three correction attempts
   failed on the same issue. Record the likely root cause and recommend a human

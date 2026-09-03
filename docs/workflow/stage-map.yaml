@@ -233,6 +233,15 @@ stages:
     loop_back:
       partial: IMPLEMENTATION
       blocked_by_plan: IMPLEMENTATION_PLANNING
+      # changes_required_tests -> TEST_WRITING: human decision 2026-09-03 (KShust).
+      # A test authored at TEST_WRITING that is unsatisfiable as written, or that
+      # contradicts an approved artifact, and that express-implementor may not
+      # edit, previously had no sanctioned route back from IMPLEMENTATION and
+      # could only surface as BLOCKED. This reuses the key name test-writer
+      # already handles on re-entry (When to use). express-implementor selects it
+      # only for a defect in the test itself - never to avoid implementing
+      # behaviour a correct test requires.
+      changes_required_tests: TEST_WRITING
 
   IMPLEMENTATION_VERIFICATION:
     type: automated_skill
