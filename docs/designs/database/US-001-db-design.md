@@ -2,7 +2,7 @@
 artifact_type: database_design
 story: US-001
 version: 2
-status: DRAFT
+status: APPROVED
 created_at: 2026-09-02T16:44:33Z
 updated_at: 2026-09-02T18:32:49Z
 produced_by: db-designer

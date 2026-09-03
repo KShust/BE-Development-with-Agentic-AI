@@ -266,6 +266,31 @@ prose without an id, that closes an id never raised, or that raises an id
 already raised — and say which, rather than dropping it silently. The append is
 the record; the derived set above is only a view of it.
 
+## Progressing reviewed inputs to APPROVED
+
+`DRAFT → APPROVED` for an artifact that has already cleared its review gate is
+normally the work of `/so:approve`, which progresses the human gate's
+`required_artifacts` (see `.claude/commands/so/approve.md`). `DESIGN_REVIEW` is
+the one review stage in `stage-map.yaml` whose reviewed inputs have **no**
+following human gate — it routes straight to `IMPACT_ANALYSIS` — so without this
+step the design artifacts never reach `APPROVED` and the input invariant above
+(`status` is `APPROVED` for artifacts gated by a review) can never be satisfied
+from `IMPACT_ANALYSIS` onward.
+
+So: **on a `PASS` (or `NOT_APPLICABLE`) verdict out of `DESIGN_REVIEW`, in the
+same write that records the transition, progress the front-matter `status:` of
+`api_design`, `openapi`, `database_design` and `entity_model` from `DRAFT` to
+`APPROVED`** — skipping any whose owning stage (`API_DESIGN` / `DB_DESIGN`)
+recorded `NOT_APPLICABLE`, and skipping `openapi` for its `status:` (the OpenAPI
+YAML exception in `artifact-schema.md` gives it no such field; it is carried by
+the paired `api_design`). Do **not** increment `version` or `updated_at` — no
+content changed. This is the orchestrator-recorded status progression that
+`artifact-schema.md` permits ("A review stage may set an input's `status`
+progression only through the orchestrator-recorded result"), and the moment
+`artifact-lifecycle.md` §1 describes for an artifact with a review gate and no
+human gate. A `CHANGES_REQUIRED` verdict progresses nothing; the loop-back
+owner re-runs and re-emits `DRAFT`.
+
 ## Migrating the free-text findings
 
 `non_blocking_findings` was free text before this schema and only ever grew.

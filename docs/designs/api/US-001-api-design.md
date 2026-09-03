@@ -2,7 +2,7 @@
 artifact_type: api_design
 story: US-001
 version: 2
-status: DRAFT
+status: APPROVED
 created_at: 2026-09-02T16:23:21Z
 updated_at: 2026-09-02T17:41:30Z
 produced_by: openapi-designer
