@@ -1,10 +1,10 @@
 ---
 artifact_type: findings_triage
 story: US-001
-version: 1
+version: 2
 status: APPROVED
 created_at: 2026-09-03T01:12:00Z
-updated_at: 2026-09-03T01:12:00Z
+updated_at: 2026-09-03T07:41:05Z
 produced_by: human:KShust
 inputs:
   - path: docs/workflow/workflow-state.yaml
@@ -25,6 +25,14 @@ default `LEGACY:*` conversion. Findings not listed here are dropped.
 
 **49 free-text entries collapse to 20 findings** — 11 open, 9 accepted. The rest
 were either already closed, or were never findings.
+
+> **The three tables below are the decision as taken at 2026-09-03T01:12, and
+> are not a live view.** Findings have closed since — `IMPACT_ANALYSIS:R-2`,
+> `R-3`, `R-5` and `R-6` among them — and the open set is derived from
+> `history.jsonl`, never from this file (`state-schema.md`, Finding lifecycle).
+> The tables are left exactly as they were decided; a later decision is recorded
+> as its own section rather than by editing them, so that what was decided when
+> stays legible. **Revision 2 adds one such section at the end of this file.**
 
 ## Three corrections found by execution, not by reading
 
@@ -89,3 +97,51 @@ not need to carry them.
 what it verified, and why an artifact is at the version it is. All of it is
 already in `history.jsonl`, which is where it belongs. Filing run records as
 findings is what turned the list into a log that only grew.
+
+---
+
+# Revision 2 — `DESIGN_REVIEW:e-1` is accepted
+
+Decided by KShust on 2026-09-03. Revision 1's tables above are untouched: they
+record what was decided at 01:12, and `e-1` was correctly open then.
+
+**`DESIGN_REVIEW:e-1` moves `RAISED` → `ACCEPTED`.** MAJOR. Specification v14
+names four `DomainError` subclasses at four sites — lines 41, 515, 940 and 947 —
+where `architecture.md` AD-6 names five for US-001.
+
+**Why accepted rather than repaired.** It is the same species as `SPEC_REVIEW:m-2`
+and `m-3` above: a real defect in an artifact past its human gate, with no
+proportionate route back. `docs/specifications/` is owned by `spec-writer`, so
+repairing it is a loop-back to `SPECIFICATION`, a second `SPEC_REVIEW`, and a
+second entry into `HUMAN_SPEC_APPROVAL` — a gate already passed — in the middle
+of a Story that is currently looping on its plan. `IMPACT_ANALYSIS` weighed
+exactly that trade and declined it, and the declination is itself accepted above
+as `IMPACT_ANALYSIS:e1-loopback`. Accepting `e-1` is that decision carried to its
+conclusion instead of left half-made.
+
+**What protects the delivery anyway.** Plan D-1 states in as many words that AD-6
+is authoritative and that the Specification is the stale copy, and it was
+`IMPACT_ANALYSIS`'s express condition for declining the loop-back. The detection
+net behind it is the AC-6 body assertion on the `429`, which fails if only four
+classes are built.
+
+**One claim corrected.** `PLAN_REVIEW` revisions 1 and 2 both wrote that "US-002
+onward is not protected, because the next Story reads the same stale
+Specification". That has no mechanism: `stage-map.yaml` gives `SPECIFICATION` the
+inputs `[story, clarification_report, open_decisions]` and `CLARIFICATION` the
+input `[story]`, so no stage feeds one Story's Specification into another. The
+only references to `US-001-spec.md` outside US-001 are illustrative examples in
+`artifact-schema.md` and `state-schema.md`.
+
+The residual risk is therefore **narrower and closer** than that framing
+suggested, not absent: US-001's own artifact chain stays internally inconsistent
+— Specification says four, AD-6 and the delivered code say five — and
+`RECONCILIATION` is the stage whose whole job is to check that the chain
+describes one delivery. This acceptance, with its reason on record, is what lets
+that stage pass it rather than re-raise it. The next `PLAN_REVIEW` run owns the
+correction to its own artifact.
+
+**How it is recorded.** Only `story-orchestrator` writes `history.jsonl`, and
+only from a stage's result envelope. The next stage to run reports `e-1` as
+`ACCEPTED` citing this section; the derived open set drops it at that
+transition. Nothing is appended out of band.
