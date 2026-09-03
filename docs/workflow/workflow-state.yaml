@@ -4,48 +4,45 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: TEST_WRITING
-previous_stage: IMPLEMENTATION
+current_stage: IMPLEMENTATION
+previous_stage: TEST_WRITING
 last_completed_stage: TEST_WRITING
 status: IN_PROGRESS
 attempt: 3
-last_invoked_skill: express-implementor
+last_invoked_skill: test-writer
 last_result:
-  verdict: CHANGES_REQUIRED
-  stage: IMPLEMENTATION
-  recorded_at: 2026-09-03T21:20:00Z
+  verdict: PASS
+  stage: TEST_WRITING
+  recorded_at: 2026-09-03T21:44:15Z
 last_artifacts:
-  - type: implementation_report
-    path: docs/evidence/US-001-implementation-report.md
+  - type: test_strategy
+    path: docs/tests/US-001-test-strategy.md
+    version: 3
+  - type: ac_test_matrix
+    path: docs/tests/US-001-ac-test-matrix.md
+    version: 3
+  - type: test_generation_report
+    path: docs/evidence/US-001-test-generation-report.md
     version: 3
 pending_human_gate: null
-# last_completed_stage stays TEST_WRITING, carried forward unchanged:
-# CHANGES_REQUIRED does not update it (SKILL.md: "last_completed_stage := old
-# stage when verdict was PASS/NOT_APPLICABLE" - CHANGES_REQUIRED is not in
-# that list), matching the precedent at b5b5010 (PLAN_REVIEW ->
-# IMPLEMENTATION_PLANNING CHANGES_REQUIRED left last_completed_stage at
-# IMPLEMENTATION_PLANNING, not PLAN_REVIEW).
-#
-# 327b79e (committed earlier, between this event and the previous one) added
-# IMPLEMENTATION.loop_back.changes_required_tests to stage-map.yaml - the
-# route that did not exist when the previous BLOCKED event was recorded.
-# express-implementor's IMPLEMENTATION:T-1 finding now has somewhere to go:
-# route to TEST_WRITING for the one test correction it names, rather than
-# holding at BLOCKED with no path forward.
-#
-# implementation_report stays at its final v3 text here for the same reason
-# noted at the IMPLEMENTATION attempt-1 commit: the doc is overwritten
-# wholesale per revision, so its true intermediate content at this moment is
-# not separately recoverable.
+# IMPLEMENTATION:T-1 is RESOLVED. test-writer corrected the one unsatisfiable
+# case in tests/integration/auth-register-password-validation.test.ts: it now
+# reads "rejects a caseless-script password that can reach only 2 of the 4
+# classes (SC-1 known limitation, EC-6)" and asserts 400 VALIDATION_FAILED
+# with a non-empty fieldErrors.password, fixture
+# '中文密码短语加密内容1234' (14 code points). No other test, fixture,
+# artifact or file was touched - test-generation-report.md's "Revision 3"
+# section documents this and was already committed, in full, under
+# TEST_WRITING attempt 2 above (git held no intermediate snapshot to split
+# the one corrected case from the rest of that file's content).
 blocking_issues: []
-# Derived from history.jsonl: every id whose latest event says RAISED. This
-# transition's own findings are empty - it is a routing decision, not a new
-# review - so the set is unchanged from the previous event, still 10.
+# Derived from history.jsonl: every id whose latest event says RAISED.
+# IMPLEMENTATION:T-1 closes (RESOLVED). The set drops from 10 to 9.
 non_blocking_findings:
   - id: "IMPACT_ANALYSIS:R-4"
     severity: MAJOR
     status: RAISED
-    summary: "TEST_WRITING owes it: Zod leaves details.fieldErrors empty for both the unknown-property and the non-object-body 400, and minProperties must reach the generated document - tests written (auth-register-envelope.test.ts, errorHandler.test.ts) but not yet executable, see TEST_WRITING:B-1"
+    summary: "IMPLEMENTATION_VERIFICATION owes it: both Zod fieldErrors mappings are implemented in errorHandler.ts toFieldErrors and pass at the unit level; closing it needs the integration behaviour (auth-register-envelope.test.ts) verified working, which needs the PC-1 database"
   - id: "IMPACT_ANALYSIS:R-7"
     severity: MINOR
     status: RAISED
@@ -53,15 +50,15 @@ non_blocking_findings:
   - id: "DESIGN_REVIEW:e-2"
     severity: MINOR
     status: RAISED
-    summary: "TEST_WRITING owes it: three request shapes reach one 400 through two Zod paths; cover all three, not only the bodyless POST with a content type - tests written (auth-register-envelope.test.ts) but not yet executable, see TEST_WRITING:B-1"
+    summary: "IMPLEMENTATION_VERIFICATION owes it: the three converging request shapes are covered by named tests (auth-register-envelope.test.ts, validateRequest.test.ts); the unit half passes, the integration half needs the PC-1 database to run"
   - id: "DESIGN_REVIEW:d-4"
     severity: MINOR
     status: RAISED
-    summary: "IMPLEMENTATION_VERIFICATION owes it: email declared format and bounds describe the normalized value, so compare the generated contract semantically"
+    summary: "IMPLEMENTATION_VERIFICATION owes it: the generated docs/api/openapi.json describes the normalized email; role/code render as single-value enum not const and the 400 as anyOf not oneOf - compare the contract semantically, not key-for-key"
   - id: "IMPLEMENTATION_PLANNING:R-P1"
     severity: MINOR
     status: RAISED
-    summary: "TEST_WRITING precedes IMPLEMENTATION but the schema, migration and compose file arrive in plan steps 2-3, so the tests authored at TEST_WRITING cannot execute until then and must not be gated on a running suite - the actual scope of this gap turned out to be broader; see TEST_WRITING:B-1"
+    summary: "materialised at IMPLEMENTATION (both attempts) and again at this TEST_WRITING re-entry: the integration suite could not execute here because the plan/PC-1 assume a disposable Postgres the environment did not have; carried, not masked as PASS; the first execution moves to IMPLEMENTATION_VERIFICATION / CI"
   - id: "IMPLEMENTATION_PLANNING:R-P2"
     severity: MINOR
     status: RAISED
@@ -70,10 +67,6 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "IMPLEMENTATION_PLANNING owes it: plan v4 raised the findings-triage input to version 2 in the front matter but left the Source Artifacts table at line 143 saying version 1; the file is at version 2, so the human-facing record is the wrong one"
-  - id: "IMPLEMENTATION:T-1"
-    severity: MAJOR
-    status: RAISED
-    summary: "tests/integration/auth-register-password-validation.test.ts 'accepts a 12-character password written in a script with no letter case' is unsatisfiable: the fixture is 9 code points (its own >=12 precondition throws) and its expected 201 contradicts SC-1's literal 3-of-4 rule (CJK+digit+symbol resolve to 2 classes). express-implementor implemented SC-1 literally and did not edit the test; needs a TEST_WRITING correction"
   - id: "IMPLEMENTATION:E-1"
     severity: MINOR
     status: RAISED
@@ -81,8 +74,8 @@ non_blocking_findings:
   - id: "IMPLEMENTATION:G-1"
     severity: MINOR
     status: RAISED
-    summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate and npx prisma validate fail when DATABASE_URL is unset; the generated client cannot be produced on a bare checkout. CI adds a job-level DATABASE_URL and an explicit generate step; no project postinstall was added because it would break npm ci without the variable"
+    summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate / validate fail when DATABASE_URL is unset and the generated client cannot be produced on a bare checkout; ci.yml adds a job-level DATABASE_URL and an explicit generate step, no project postinstall (it would break npm ci). Flag for a possible PC-1 note"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T21:20:00Z
+updated_at: 2026-09-03T21:44:15Z
 completed_at: null
 archived_at: null
