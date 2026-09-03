@@ -1,10 +1,10 @@
 ---
 artifact_type: implementation_plan
 story: US-001
-version: 2
+version: 3
 status: DRAFT
 created_at: 2026-09-03T01:43:14Z
-updated_at: 2026-09-03T06:57:20Z
+updated_at: 2026-09-03T08:02:29Z
 produced_by: implementation-planner
 inputs:
   - path: docs/stories/US-001-register-customer.md
@@ -30,13 +30,34 @@ inputs:
   - path: docs/decisions/US-001-findings-triage.md
     version: 1
   - path: docs/reviews/plans/US-001-plan-review.md
-    version: 1
+    version: 2
 supersedes: null
 ---
 
 # Implementation Plan: Customer Registration (US-001)
 
 ## Revision history
+
+**Revision 3 (2026-09-03).** `PLAN_REVIEW` revision 2 returned
+`CHANGES_REQUIRED` on `PLAN_REVIEW:p-6` (Major) and routed the Story back to
+`IMPLEMENTATION_PLANNING` (`docs/workflow/history.jsonl`, 2026-09-03T07:22:16Z).
+The defect was in D-10's own decision text: the two projects it declared
+collected `tests/harness.test.ts` into neither, so the repository's only existing
+test would stop running. **Nothing about the Story, its scope, its file lists or
+its step boundaries changed in this revision** — one project was added to one
+array, and one mechanism the plan had left unnamed was named.
+
+| # | Change | Discharges |
+|---|---|---|
+| 1 | D-10 declares **three** projects — `unit`, `harness`, `integration` — so the union of the `include` globs covers every test file the repository has; the collection assertion the review asked for is added to Step 3's evidence and executed | `PLAN_REVIEW:p-6` (the loop-back reason) |
+| 2 | Step 3 and D-10 name `process.loadEnvFile()` on the installed Node as the `.env.test` reader, guarded so an externally set `DATABASE_URL` still wins, and state that no dependency is added for it | `PLAN_REVIEW:p-7` |
+| 3 | Files Explicitly Not Changed states that `tests/harness.test.ts` is unchanged **and still collected**, which is the claim `p-6` showed the plan was not entitled to | `PLAN_REVIEW:p-6` |
+
+**Carried to `HUMAN_PLAN_APPROVAL` still open**, unchanged by this revision:
+`PLAN_REVIEW:p-1` (D-4 commits `.env.test`; the human owns the decision, and it
+is Open Question 3 below) and `PLAN_REVIEW:p-4` (`security-conventions.md` SC-3
+line 178 cites `api-conventions.md` AC-5 where it means AC-6 — a convention-text
+defect this plan does not own and does not edit).
 
 **Revision 2 (2026-09-03).** `HUMAN_PLAN_APPROVAL` rejected revision 1 on
 `PLAN_REVIEW:p-3` (decision recorded in `docs/workflow/history.jsonl`,
@@ -447,7 +468,7 @@ implementation.
 | `src/server.ts` | `listen`, `SIGTERM`/`SIGINT`, graceful shutdown incl. Prisma disconnect | FR-20; `module-map.md` |
 | `tsconfig.typecheck.json` | `include` gains `prisma.config.ts` (D-3) | R-2 |
 | `.gitignore` | Gains `!.env.test` (D-4) | R-3; PC-1 |
-| `vitest.config.ts` | `test.projects` with `unit` and `integration`; `fileParallelism: false` and `globalSetup` on `integration` only; resolve the test `DATABASE_URL` in the config module body (D-10) | FR-19; PC-1 |
+| `vitest.config.ts` | `test.projects` with `unit`, `harness` and `integration`, the three `include` globs covering every test file on disk; `fileParallelism: false` and `globalSetup` on `integration` only; resolve the test `DATABASE_URL` in the config module body via `process.loadEnvFile()` (D-10) | FR-19; PC-1 |
 | `package.json` | `db:test:up` / `db:test:down` scripts. **No other script change** | FR-19; PC-1 |
 | `AGENTS.md` | The two new scripts added to the Build and Validation Commands table | FR-19; PC-1 (by name) |
 | `.env.example` | Add the test-database placeholder; **remove the four JWT entries** | FR-18; SC-3, SC-7 |
@@ -464,6 +485,7 @@ implementation.
 | `src/modules/users/users.schemas.ts` | D-8 |
 | `src/modules/users/users.controller.ts`, `users.routes.ts` | `users` exposes no endpoint in this Story |
 | `src/lib/openapi.ts`, `scripts/generate-openapi.ts`, `eslint.config.js`, `tsconfig.json`, `tests/support/setup.ts` | Reused unchanged (impact analysis §6) |
+| `tests/harness.test.ts` | Reused unchanged **and still collected** — the `harness` project of D-10 exists so that this row is a claim about its execution and not only about its text (`PLAN_REVIEW:p-6`) |
 | `scripts/validate-harness.py`, `scripts/validate-harness.test.py`, `docs/workflow/artifact-schema.md` | Human approval only (`AGENTS.md` Prohibited); nothing here needs them |
 | Any `products` / `orders` / `support` path | Out of scope (`AGENTS.md` Active Scope) |
 
@@ -526,21 +548,24 @@ committed; `npm run prisma:deploy` applies cleanly to an empty database.
 - `AGENTS.md`: both scripts added to the Build and Validation Commands table —
   PC-1 requires this **by name**, so it is a deliverable, not housekeeping.
 - `vitest.config.ts`: converted to **`test.projects`** — the mechanism, written
-  out in full below (D-10). Two projects, `unit` and `integration`; file
-  parallelism is disabled on the `integration` project only; `globalSetup` is
-  declared on that project only; the test `DATABASE_URL` resolves as
-  `process.env.DATABASE_URL` ?? `.env.test` (D-4) in the config module body.
+  out in full below (D-10). **Three** projects, `unit`, `harness` and
+  `integration`, whose `include` globs together cover every test file the
+  repository has; file parallelism is disabled on the `integration` project only;
+  `globalSetup` is declared on that project only; the test `DATABASE_URL`
+  resolves as `process.env.DATABASE_URL` ?? `.env.test` (D-4) in the config
+  module body, **read with `process.loadEnvFile()`** and no new dependency.
 - `.github/workflows/ci.yml`: `services: postgres` mapped to host **5433**; the
   stale "Not here yet: database-backed integration tests" header comment removed.
 
 #### D-10 — `test.projects` is the mechanism, and this is its shape
 
 Discharges `PLAN_REVIEW:p-3`, the finding `HUMAN_PLAN_APPROVAL` rejected
-revision 1 on. Revision 1 asked for `fileParallelism: false` "scoped to
-`tests/integration`" without naming how. It is a **top-level `test.*` option** at
-the installed Vitest 4.1.11, and the current `vitest.config.ts` is one flat
-`test` block whose single `include` covers both trees — so the sentence as written would either serialize
-the whole suite or scope nothing.
+revision 1 on, and `PLAN_REVIEW:p-6`, the finding `PLAN_REVIEW` revision 2 raised
+against revision 2's answer to it. Revision 1 asked for `fileParallelism: false`
+"scoped to `tests/integration`" without naming how. It is a **top-level `test.*`
+option** at the installed Vitest 4.1.11, and the flat `vitest.config.ts` it
+replaces is one `test` block whose single `include` covers both trees — so the
+sentence as written would either serialize the whole suite or scope nothing.
 
 `vitest.config.ts` becomes one root `test` block carrying the shared options it
 carries today, plus a `projects` array:
@@ -550,7 +575,7 @@ test: {
   // shared options unchanged: environment, globals, exclude, setupFiles,
   // env: { TZ: 'UTC' }, restoreMocks, clearMocks, unstubEnvs, unstubGlobals,
   // testTimeout, hookTimeout. The flat `include` is removed - each project
-  // declares its own.
+  // declares its own, and the three together cover the whole tree.
   projects: [
     {
       extends: true,
@@ -559,6 +584,14 @@ test: {
         include: ['src/**/*.test.ts'],
         fileParallelism: true,
         sequence: { shuffle: { files: true, tests: false } },
+      },
+    },
+    {
+      extends: true,
+      test: {
+        name: 'harness',
+        include: ['tests/*.test.ts'],
+        fileParallelism: true,
       },
     },
     {
@@ -574,9 +607,37 @@ test: {
 }
 ```
 
-**Verified by execution during this stage** against the installed 4.1.11 (probe
-built at the repository root, run, then removed; `git status` clean afterwards):
+**Why there is a third project — `PLAN_REVIEW:p-6`.** Revision 2 declared only
+`unit` and `integration`. `tests/harness.test.ts` sits at the top level of
+`tests/` and matches neither `src/**/*.test.ts` nor
+`tests/integration/**/*.test.ts`; the flat config it replaces collected it
+through `tests/**/*.test.ts`. A project `include` overrides rather than extends
+the root one, so the file would simply stop running. The `harness` project is
+preferred over widening `unit` to `['src/**/*.test.ts', 'tests/*.test.ts']`
+because the file is neither a unit test of a `src/` module nor an integration
+test — it asserts that the *configuration* is correct (its own header says a
+failure there means the configuration is broken rather than the application), and
+the block D-10 restructures is exactly what it guards. Naming it keeps each
+project's `include` one coherent tree and gives any future `tests/*.test.ts` a
+home rather than a silent drop.
 
+**Verified by execution during this stage** against the installed 4.1.11 (probes
+built at the repository root, run, then removed; `git status` clean of them
+afterwards):
+
+- **The collected set covers the tree.** `npx vitest --root . list` with **no**
+  `--project` filter, against the three-project config, lists
+  `[harness] tests/harness.test.ts` and its two test cases — the repository's
+  only test file today, so the union equals the tree. This is the assertion
+  `PLAN_REVIEW` §11 asked for, and it is the check that would have caught `p-6`.
+- **The defect is real, and it turns silent only after Step 4.** With revision
+  2's two-project shape, `vitest list` printed nothing and a full run exited **1**
+  ("No test files found") — today, with no integration tests written yet. With a
+  single throwaway file added under `tests/integration/`, the same shape exited
+  **0** reporting `Test Files 1 passed (1)`, with `tests/harness.test.ts` absent.
+  So the failure becomes invisible precisely when `TEST_WRITING` lands Step 4's
+  suite. The three-project shape in the same state exited **0** with
+  `Test Files 2 passed (2)`, `Tests 3 passed (3)`.
 - **The scoping works, and it is not merely type-valid.** Two unit files and two
   integration files, each holding for 1.5s and appending a timestamp: the unit
   files started 1 ms apart and overlapped; the integration files did not overlap
@@ -584,12 +645,13 @@ built at the repository root, run, then removed; `git status` clean afterwards):
   parallelism and its shuffle, and `integration` runs one file at a time — the
   outcome PC-1 and NFR-005 both ask for.
 - **`globalSetup` belongs on the `integration` project, not at the root.** With
-  it declared at root and `extends: true` on both projects it ran **three
-  times** in one command; declared on the `integration` project alone it ran
-  exactly once, and only when integration tests run. That also keeps
-  `npm run test:unit` free of any database dependency.
-- **`extends: true` carries the root block into each project**, and the probe
-  ran with it on both; a project written without it does not inherit the shared
+  it declared at root and `extends: true` on both projects it ran **three times**
+  in one command; declared on the `integration` project alone it ran exactly
+  once, and only when integration tests run. That also keeps `npm run test:unit`
+  free of any database dependency — and the `harness` project, which declares no
+  `globalSetup`, needs no database either.
+- **`extends: true` carries the root block into each project**, and the probe ran
+  with it on all three; a project written without it does not inherit the shared
   options, so it is not decoration.
 - `ProjectConfig` in the shipped types is `Omit<InlineConfig, NonProjectOptions
   | 'sequencer' | 'deps'>`, and `NonProjectOptions` lists neither
@@ -599,12 +661,15 @@ built at the repository root, run, then removed; `git status` clean afterwards):
   ("use top-level `fileParallelism` instead"), which is what makes the flat
   config unable to express the scoping.
 - **The three existing test scripts keep working unchanged**, which is what lets
-  Step 3 hold to "no other script change" in `package.json`. `npm run test:unit`
-  (`vitest run src`) matched only the unit file and did **not** trigger the
-  integration project's `globalSetup`; `npm run test:integration`
-  (`vitest run tests/integration`) matched only the integration file and did
-  trigger it. A positional path filter selects files across projects, so neither
-  script needs a `--project` flag.
+  Step 3 hold to "no other script change" in `package.json`. Against the
+  three-project config, `npm run test:unit` (`vitest run src`) matched no file and
+  exited 0 on its `--passWithNoTests`, triggering no `globalSetup`;
+  `npm run test:integration` (`vitest run tests/integration`) matched only the
+  integration file. A positional path filter selects files across projects, so
+  neither script needs a `--project` flag, and `--project harness` resolves for a
+  focused run when one is wanted. `tests/harness.test.ts` is collected by
+  `npm run test` and by neither narrowed script — which is exactly its behaviour
+  today under the flat config, so nothing regresses.
 
 No new config file is introduced, so `IMPACT_ANALYSIS:R-2` does not recur, and
 `vitest.config.ts` stays the one file the Files To Modify table already names.
@@ -615,18 +680,35 @@ workers, so the resolved URL must reach both. Root `test.env` reaches the
 **workers only** — the probe read `undefined` for a `test.env` variable inside
 `globalSetup` while a test file in the same run read it correctly. **So the
 config module body assigns `process.env.DATABASE_URL` before `defineConfig`**
-(main process, before either consumer), and `test.env` is not used for it. This
-replaces revision 1's "confirm against the installed version rather than
-assuming" with the confirmation.
+(main process, before either consumer), and `test.env` is not used for it.
 
-**Evidence.** `npx vitest --root . list --project unit` and `--project integration`
-each resolve and list only their own tree, proving the two-project split;
-`npm run db:test:up` starts the service; `npm run test:integration`
+**And it is read with Node's built-in — `PLAN_REVIEW:p-7`.** Revision 2 stated
+the resolution order without naming what parses `.env.test`. The mechanism is
+**`process.loadEnvFile()`**, a function on the installed Node v24.20.0 (confirmed
+at this stage), called from the config module body **only when
+`process.env.DATABASE_URL` is unset** — D-4 requires an externally supplied value
+to win, and a probe confirmed both halves: loading the file populates
+`process.env.DATABASE_URL`, and with the variable already set the guard leaves
+the external value in place. **No dependency is added**, which keeps the "New
+Dependencies: none" claim below true: `dotenv` is declared in neither
+`dependencies` nor `devDependencies` and adding it would need SC-6 approval, and
+`vite`'s `loadEnv` is present only transitively under Vitest, so importing it
+directly would rely on hoisting an undeclared package. `process.loadEnvFile`
+throws `ENOENT` when the file is absent (confirmed by the same probe), so the
+call is wrapped to fail with the command to run — naming `npm run db:test:up` and
+the missing `.env.test` — rather than a raw error. That is the same PC-1
+requirement that governs an unreachable database, for the same reason: the Stop
+hook forwards that message.
+
+**Evidence.** `npx vitest --root . list` with no `--project` filter lists every
+test file on disk (the `p-6` assertion); `npx vitest --root . list --project unit`,
+`--project harness` and `--project integration` each resolve and list only their
+own tree; `npm run db:test:up` starts the service; `npm run test:integration`
 reaches the database and reports test results rather than a connection error;
-`npm run test:unit` passes with the database **stopped**;
-with the database stopped, the run fails with **the command to run** and not a
-raw connection error (PC-1 states this explicitly — the Stop hook forwards that
-message); `npm run format:check` passes on the new YAML.
+`npm run test:unit` passes with the database **stopped**; with the database
+stopped, the run fails with **the command to run** and not a raw connection error
+(PC-1 states this explicitly — the Stop hook forwards that message);
+`npm run format:check` passes on the new YAML.
 
 ### Step 4 — Tests (stage `TEST_WRITING`)
 
@@ -886,7 +968,7 @@ three SC-1 parameters; the error middleware's `ZodError` → `fieldErrors` mappi
 
 Deterministic and order-independent (NFR-005): integration tests serial with
 `TRUNCATE` between them (PC-1), unit tests keeping shuffle and parallelism, never
-against a shared or production database. **The mechanism is the two-project
+against a shared or production database. **The mechanism is the three-project
 `test.projects` block of D-10** — `fileParallelism: false` on the `integration`
 project only — not a top-level `fileParallelism`, which would serialize the unit
 suite too and silently drop the shuffle NFR-005 relies on.
@@ -942,7 +1024,7 @@ PC-1 scripts — so `npm run audit:check` is required.
 | `.gitignore` | `!.env.test` (D-4) |
 | `tsconfig.typecheck.json` | `include` gains `prisma.config.ts` (D-3) |
 | `prisma.config.ts` | New; migration connection via `env('DATABASE_URL')` (D-2) |
-| `vitest.config.ts` | `test.projects` (`unit` / `integration`); `globalSetup` and `fileParallelism: false` on `integration` only; test URL resolution in the module body (D-10) |
+| `vitest.config.ts` | `test.projects` (`unit` / `harness` / `integration`); `globalSetup` and `fileParallelism: false` on `integration` only; test URL resolution in the module body via `process.loadEnvFile()` (D-10) |
 | `package.json` | `db:test:up`, `db:test:down` |
 | `AGENTS.md` | Both scripts in the Build and Validation Commands table |
 | `.github/workflows/ci.yml` | `services: postgres` on 5433; stale header comment removed |
