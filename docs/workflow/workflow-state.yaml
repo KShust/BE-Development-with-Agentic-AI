@@ -4,47 +4,43 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: HUMAN_PLAN_APPROVAL
-previous_stage: PLAN_REVIEW
+current_stage: IMPLEMENTATION_PLANNING
+previous_stage: HUMAN_PLAN_APPROVAL
 last_completed_stage: PLAN_REVIEW
-status: WAITING_FOR_HUMAN
-attempt: 1
-last_invoked_skill: plan-reviewer
+status: IN_PROGRESS
+attempt: 2
+last_invoked_skill: null
 last_result:
-  verdict: PASS
-  stage: PLAN_REVIEW
-  recorded_at: 2026-09-03T06:15:23Z
+  verdict: HUMAN_REJECTED
+  stage: HUMAN_PLAN_APPROVAL
+  recorded_at: 2026-09-03T06:44:24Z
 last_artifacts:
+  - type: implementation_plan
+    path: docs/plans/US-001-implementation-plan.md
+    version: 1
   - type: plan_review
     path: docs/reviews/plans/US-001-plan-review.md
     version: 1
-pending_human_gate:
-  stage: HUMAN_PLAN_APPROVAL
-  status: PENDING
-  required_artifacts:
-    - type: implementation_plan
-      path: docs/plans/US-001-implementation-plan.md
-      version: 1
-    - type: plan_review
-      path: docs/reviews/plans/US-001-plan-review.md
-      version: 1
-  automated_verdict: PASS
-  blocking_findings: []
-  requested_at: 2026-09-03T06:15:23Z
-  decided_at: null
-  decided_by: null
-  comment: null
+pending_human_gate: null
 blocking_issues: []
 # Derived from history.jsonl: every id whose latest event says RAISED.
-# PLAN_REVIEW closed four (IMPACT_ANALYSIS:R-2, R-3, R-5, R-6) and raised five
-# (PLAN_REVIEW:p-1..p-5), so the set moves 12 -> 13.
+# The HUMAN_PLAN_APPROVAL rejection raised and closed nothing, so the set is
+# unchanged at 13 - the same set PLAN_REVIEW left (it closed four
+# IMPACT_ANALYSIS findings and raised five of its own).
+#
+# PLAN_REVIEW:p-3 is the finding the human rejection acts on. Its summary below
+# still reads "IMPLEMENTATION owes it" because a finding's summary is fixed by
+# the event that raised it and is never edited in place (state-schema.md,
+# Finding lifecycle). The rejection reassigns it to IMPLEMENTATION_PLANNING; the
+# reassignment lives in the HUMAN_REJECTED event's comment, and p-3 closes when
+# the revised plan names the mechanism.
 #
 # DESIGN_REVIEW:e-1 is deliberately NOT closed. D-1 mitigates it for this Story
 # by declaring AD-6 authoritative, but nothing edits the Specification, which
 # stays stale at four sites (spec lines 41, 515, 940, 947) for US-002 onward.
 # The APPROVED triage says the residual risk "is e-1 itself, which stays open",
-# and the plan's own Risks table says "Mitigated", not "Closed". Carried to
-# HUMAN_PLAN_APPROVAL to be repaired or formally ACCEPTED.
+# and the plan's own Risks table says "Mitigated", not "Closed". It returns to
+# HUMAN_PLAN_APPROVAL with the revised plan, to be repaired or formally ACCEPTED.
 non_blocking_findings:
   - id: "SPECIFICATION:FR-18"
     severity: MAJOR
@@ -99,6 +95,6 @@ non_blocking_findings:
     status: RAISED
     summary: "IMPLEMENTATION_PLANNING owes it: the plan traceability row for AC-004 lists VR-5...VR-8 as delivered, but spec VR-7 defers the breached-password check to US-009 and runs nowhere in this Story"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T06:29:29Z
+updated_at: 2026-09-03T06:44:24Z
 completed_at: null
 archived_at: null
