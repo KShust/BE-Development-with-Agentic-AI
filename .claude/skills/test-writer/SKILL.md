@@ -283,24 +283,29 @@ Create security-focused tests for applicable behavior, including:
 14. Keep test placement aligned with the module structure in
     `docs/architecture/module-map.md`.
 
-15. Run the story-specific tests.
+15. Before running anything, make every test file compile: if it imports a
+    production export that does not exist yet, create the signature-only stub
+    `AGENTS.md`'s Testing section authorizes — never more, and never for a file
+    that already carries real behavior.
 
-16. Classify the result of each test:
+16. Run the story-specific tests.
+
+17. Classify the result of each test:
 
    - fails because production behavior is not implemented yet;
    - passes because existing behavior already satisfies the requirement;
    - fails because the test or environment is invalid;
    - cannot run because infrastructure or configuration is missing.
 
-17. Correct invalid tests or test setup problems.
+18. Correct invalid tests or test setup problems.
 
-18. Do not modify production code.
+19. Do not modify production code.
 
-19. Run the relevant test set again.
+20. Run the relevant test set again.
 
-20. Create a test-generation report containing actual execution evidence.
+21. Create a test-generation report containing actual execution evidence.
 
-21. Return the required result envelope.
+22. Return the required result envelope.
 
 ## Red-Phase Verification
 
@@ -513,7 +518,8 @@ Do not modify GitHub Issues or Pull Requests from this Skill.
 
 ## Constraints
 
-- Do not modify production source files.
+- Do not modify production source files, except the signature-only stub
+  `AGENTS.md`'s Testing section authorizes — see workflow step 15 above.
 - Do not change the User Story.
 - Do not change Acceptance Criteria.
 - Do not rewrite approved Specification content.

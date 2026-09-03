@@ -268,6 +268,29 @@ reasoning and the detail.
   database; time and randomness controlled.
 - Every Acceptance Criterion is covered by at least one test; a regression test
   accompanies every bug fix; never weaken or skip a test to get a pass.
+- **`test-writer` may create a signature-only production stub — decided by a
+  human on 2026-09-03, after `TEST_WRITING:B-1`.** `stage-map.yaml` runs
+  `TEST_WRITING` before `IMPLEMENTATION`, so a test authored against a module
+  that does not exist yet fails `npm run typecheck` outright (`Cannot find
+  module` / `has no exported member`) — and that same failed resolution types
+  the import as `any`, which then fails `npm run lint`'s `no-unsafe-*` family
+  too. Both failures are one root cause, not two: the module and its export
+  must exist, even before any real behavior does. A stub is not "implementing
+  production code" in the sense `test-writer`'s Constraints forbid — nothing it
+  does satisfies a test or fixes a failure; it exists only so the file
+  compiles. It is narrow, and every one of these holds:
+  - the file did not previously exist, or was still the unmodified one-line
+    placeholder — never a file that already carries real behavior;
+  - the exact signature comes from the approved design or the Implementation
+    Plan, never `any` or `unknown` standing in for a real type;
+  - the body only throws or returns a rejected `Promise` — no conditional
+    logic, no partial behavior, nothing a test could pass against;
+  - it is not declared `async` unless it awaits something, or ESLint's
+    `require-await` fires on the stub itself;
+  - it carries no comment claiming the behavior is implemented.
+
+  `IMPLEMENTATION` replaces a stub's body, never its signature, unless an
+  approved design changed since the stub was written.
 
 **Git** — see also Definition of Done
 
