@@ -4,39 +4,43 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: IMPLEMENTATION
+current_stage: TEST_WRITING
 previous_stage: IMPLEMENTATION
 last_completed_stage: TEST_WRITING
-status: BLOCKED
-attempt: 1
+status: IN_PROGRESS
+attempt: 3
 last_invoked_skill: express-implementor
 last_result:
-  verdict: BLOCKED
+  verdict: CHANGES_REQUIRED
   stage: IMPLEMENTATION
-  recorded_at: 2026-09-03T19:54:52Z
+  recorded_at: 2026-09-03T21:20:00Z
 last_artifacts:
   - type: implementation_report
     path: docs/evidence/US-001-implementation-report.md
     version: 3
 pending_human_gate: null
-# express-implementor wrote the whole feature in one pass: config boundary,
-# Prisma datasource/model/migration, the error taxonomy, boundary validation,
-# rate limiting, password hashing, both modules, app assembly and process
-# entry - Steps 1-3 and 5-10 of the plan. Step 2 landed (schema.prisma +
-# `prisma generate`), which is what resolves TEST_WRITING:B-2 below.
+# last_completed_stage stays TEST_WRITING, carried forward unchanged:
+# CHANGES_REQUIRED does not update it (SKILL.md: "last_completed_stage := old
+# stage when verdict was PASS/NOT_APPLICABLE" - CHANGES_REQUIRED is not in
+# that list), matching the precedent at b5b5010 (PLAN_REVIEW ->
+# IMPLEMENTATION_PLANNING CHANGES_REQUIRED left last_completed_stage at
+# IMPLEMENTATION_PLANNING, not PLAN_REVIEW).
 #
-# implementation_report is cited at version 3 - its own front matter's final,
-# actual value - because the doc is overwritten wholesale per revision rather
-# than appended to (unlike the test-generation-report), so its true v1
-# content at this historical point was not separately captured by any commit
-# and cannot be recovered; only the final text this Story settled on exists.
-blocking_issues:
-  - "IMPLEMENTATION:T-1 (MAJOR) - tests/integration/auth-register-password-validation.test.ts carries a case, 'accepts a 12-character password written in a script with no letter case (SC-1 known limitation, EC-6)', that is unsatisfiable: its fixture is 9 Unicode code points against the case's own >=12 precondition, and its expected 201 contradicts SC-1's literal 3-of-4 rule (the fixture's classes - Han, digits, one symbol - resolve to 2 of 4). express-implementor implemented SC-1 literally and did not edit the test. IMPLEMENTATION has no loop-back route to TEST_WRITING for a test defect at this moment; held at BLOCKED pending that route."
-# Derived from history.jsonl: every id whose latest event says RAISED.
-# Four close (FR-18, PLAN_REVIEW:p-8, PLAN_REVIEW:p-10, and TEST_WRITING:B-2
-# moves ACCEPTED -> RESOLVED now that Step 2 has actually landed - a legitimate
-# second closing event on an already-closed id, not a re-raise); three open
-# (IMPLEMENTATION:T-1, E-1, G-1). The set holds at 10.
+# 327b79e (committed earlier, between this event and the previous one) added
+# IMPLEMENTATION.loop_back.changes_required_tests to stage-map.yaml - the
+# route that did not exist when the previous BLOCKED event was recorded.
+# express-implementor's IMPLEMENTATION:T-1 finding now has somewhere to go:
+# route to TEST_WRITING for the one test correction it names, rather than
+# holding at BLOCKED with no path forward.
+#
+# implementation_report stays at its final v3 text here for the same reason
+# noted at the IMPLEMENTATION attempt-1 commit: the doc is overwritten
+# wholesale per revision, so its true intermediate content at this moment is
+# not separately recoverable.
+blocking_issues: []
+# Derived from history.jsonl: every id whose latest event says RAISED. This
+# transition's own findings are empty - it is a routing decision, not a new
+# review - so the set is unchanged from the previous event, still 10.
 non_blocking_findings:
   - id: "IMPACT_ANALYSIS:R-4"
     severity: MAJOR
@@ -79,6 +83,6 @@ non_blocking_findings:
     status: RAISED
     summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate and npx prisma validate fail when DATABASE_URL is unset; the generated client cannot be produced on a bare checkout. CI adds a job-level DATABASE_URL and an explicit generate step; no project postinstall was added because it would break npm ci without the variable"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T19:54:52Z
+updated_at: 2026-09-03T21:20:00Z
 completed_at: null
 archived_at: null
