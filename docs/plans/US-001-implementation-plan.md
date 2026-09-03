@@ -1,10 +1,10 @@
 ---
 artifact_type: implementation_plan
 story: US-001
-version: 1
+version: 2
 status: DRAFT
 created_at: 2026-09-03T01:43:14Z
-updated_at: 2026-09-03T01:43:14Z
+updated_at: 2026-09-03T06:57:20Z
 produced_by: implementation-planner
 inputs:
   - path: docs/stories/US-001-register-customer.md
@@ -29,10 +29,41 @@ inputs:
     version: 2
   - path: docs/decisions/US-001-findings-triage.md
     version: 1
+  - path: docs/reviews/plans/US-001-plan-review.md
+    version: 1
 supersedes: null
 ---
 
 # Implementation Plan: Customer Registration (US-001)
+
+## Revision history
+
+**Revision 2 (2026-09-03).** `HUMAN_PLAN_APPROVAL` rejected revision 1 on
+`PLAN_REVIEW:p-3` (decision recorded in `docs/workflow/history.jsonl`,
+2026-09-03T06:44:24Z, `human:KShust`) and routed the Story back to
+`IMPLEMENTATION_PLANNING`. The rejection reason was one defect: Step 3 stated an
+outcome — file parallelism disabled for `tests/integration` while unit tests stay
+parallel — that the mechanism it named could not produce. **Nothing about the
+Story, its scope, its file lists or its step boundaries changed in this
+revision**; four textual defects were repaired and the plan's own claims about
+Vitest were replaced with executed evidence.
+
+| # | Change | Discharges |
+|---|---|---|
+| 1 | Step 3 now names `test.projects` as the mechanism, with the two-project shape written out and confirmed by execution at the installed Vitest 4.1.11 | `PLAN_REVIEW:p-3` (the rejection reason) |
+| 2 | Step 3's "one mechanism to confirm during the step" is resolved by execution rather than deferred: root `test.env` does **not** reach `globalSetup`, so the config module body assigns `process.env.DATABASE_URL` | plan review §11; removes an unexecuted claim |
+| 3 | Testing Strategy § Integration writes `AC-10` (the `api-conventions.md` section), not `AC-010` | `PLAN_REVIEW:p-2` |
+| 4 | Traceability, AC-004 row writes `VR-5, VR-6, VR-8`; VR-7 is marked deferred to US-009 | `PLAN_REVIEW:p-5` |
+| 5 | D-4 cites `persistence-conventions.md` PC-10 and PC-1's second bullet alongside the `AGENTS.md` line, and is listed as Open Question 3 for the gate | `PLAN_REVIEW:p-1` — **surfaced, not decided** |
+
+**Carried to `HUMAN_PLAN_APPROVAL` still open**, and deliberately not closed by
+this revision: `PLAN_REVIEW:p-1` (D-4 commits `.env.test`; the human owns the
+Prohibited line it acts against), `PLAN_REVIEW:p-4` (`security-conventions.md`
+SC-3 line 178 cites AC-5 where it means AC-6 — a convention amendment, no plan
+change), `DESIGN_REVIEW:e-1` (Specification v14 stale against `architecture.md`
+AD-6 at four sites; mitigated for this Story by D-1, unrepaired for US-002
+onward), and Open Questions 1 and 2. The three findings this revision does close
+are `p-2`, `p-3` and `p-5`.
 
 ## Goal
 
@@ -76,7 +107,12 @@ Conventions consumed: `architecture.md` (AD-2…AD-9), `module-map.md`,
 
 Nine choices that the approved artifacts explicitly left to
 `IMPLEMENTATION_PLANNING`. Each names the finding it discharges, so
-`PLAN_REVIEW` can check the discharge rather than rediscover the question.
+`PLAN_REVIEW` can check the discharge rather than rediscover the question. A
+tenth, **D-10**, is recorded at Step 3 rather than here, because it is a
+mechanism for one step and reads better beside the file it configures.
+
+`PLAN_REVIEW` v1 accepted D-1…D-9 on their substance; revision 2 changes only
+D-4's citations and its routing to the gate (`PLAN_REVIEW:p-1`).
 
 ### D-1 — The domain-error class list: **AD-6 is authoritative, and it names five**
 
@@ -183,6 +219,27 @@ pick one and record it.
 
 **Resolution: `.gitignore` gains `!.env.test` immediately after the existing
 `!.env.example`, with a comment stating why, and `.env.test` is committed.**
+
+**Three convention lines say the opposite, and all three are named here** — the
+omission `PLAN_REVIEW:p-1` raised was that revision 1 argued against only the
+first of them:
+
+- `AGENTS.md` Prohibited: "Never commit secrets, `.env`, `dist/`, …".
+- `persistence-conventions.md` **PC-10**, final bullet: "Generated database
+  artifacts, dumps, and `.env` files are never committed."
+- `persistence-conventions.md` **PC-1**, second bullet: "Credentials are never
+  hard-coded and never committed." The planned `.env.test` carries a connection
+  string with a username and password, throwaway though they are.
+
+This is the only decision in this plan that acts against a line in `AGENTS.md`
+Prohibited, and D-9 sets the plan's own standard for that case: amending or
+crossing a convention is a human decision. **So D-4 is carried to
+`HUMAN_PLAN_APPROVAL` as Open Question 3, and this plan does not treat it as
+settled.** The reasoning below is the case for the resolution, offered to the
+gate — not a decision taken in its place. If the gate declines it, the fallback
+is the rejected alternative recorded at the end of this decision: CI supplies
+`DATABASE_URL` as a workflow variable and `.env.test` stays local-only. Either
+outcome leaves the file list and the step boundaries unchanged.
 
 Reasons, in order of weight:
 
@@ -390,7 +447,7 @@ implementation.
 | `src/server.ts` | `listen`, `SIGTERM`/`SIGINT`, graceful shutdown incl. Prisma disconnect | FR-20; `module-map.md` |
 | `tsconfig.typecheck.json` | `include` gains `prisma.config.ts` (D-3) | R-2 |
 | `.gitignore` | Gains `!.env.test` (D-4) | R-3; PC-1 |
-| `vitest.config.ts` | `fileParallelism: false` for `tests/integration`; register `globalSetup`; resolve the test `DATABASE_URL` | FR-19; PC-1 |
+| `vitest.config.ts` | `test.projects` with `unit` and `integration`; `fileParallelism: false` and `globalSetup` on `integration` only; resolve the test `DATABASE_URL` in the config module body (D-10) | FR-19; PC-1 |
 | `package.json` | `db:test:up` / `db:test:down` scripts. **No other script change** | FR-19; PC-1 |
 | `AGENTS.md` | The two new scripts added to the Build and Validation Commands table | FR-19; PC-1 (by name) |
 | `.env.example` | Add the test-database placeholder; **remove the four JWT entries** | FR-18; SC-3, SC-7 |
@@ -468,22 +525,105 @@ committed; `npm run prisma:deploy` applies cleanly to an empty database.
 - `package.json`: `db:test:up` and `db:test:down`. **No other script changes.**
 - `AGENTS.md`: both scripts added to the Build and Validation Commands table —
   PC-1 requires this **by name**, so it is a deliverable, not housekeeping.
-- `vitest.config.ts`: register `globalSetup`; `fileParallelism: false` scoped to
-  `tests/integration` (unit tests keep shuffling and parallelism); resolve the
-  test `DATABASE_URL` as `process.env.DATABASE_URL` ?? `.env.test` (D-4).
+- `vitest.config.ts`: converted to **`test.projects`** — the mechanism, written
+  out in full below (D-10). Two projects, `unit` and `integration`; file
+  parallelism is disabled on the `integration` project only; `globalSetup` is
+  declared on that project only; the test `DATABASE_URL` resolves as
+  `process.env.DATABASE_URL` ?? `.env.test` (D-4) in the config module body.
 - `.github/workflows/ci.yml`: `services: postgres` mapped to host **5433**; the
   stale "Not here yet: database-backed integration tests" header comment removed.
 
-**One mechanism to confirm during the step, both resolutions inside this plan.**
-Vitest's `globalSetup` runs in the main process and test files run in workers, so
-the resolved `DATABASE_URL` must reach both. Set it via `test.env` in
-`vitest.config.ts`; if the installed Vitest 4.1 does not propagate that to
-`globalSetup`, assign `process.env.DATABASE_URL` in the config module body, which
-runs in the main process before either. Confirm against the installed version
-rather than assuming.
+#### D-10 — `test.projects` is the mechanism, and this is its shape
 
-**Evidence.** `npm run db:test:up` starts the service; `npm run test:integration`
+Discharges `PLAN_REVIEW:p-3`, the finding `HUMAN_PLAN_APPROVAL` rejected
+revision 1 on. Revision 1 asked for `fileParallelism: false` "scoped to
+`tests/integration`" without naming how. It is a **top-level `test.*` option** at
+the installed Vitest 4.1.11, and the current `vitest.config.ts` is one flat
+`test` block whose single `include` covers both trees — so the sentence as written would either serialize
+the whole suite or scope nothing.
+
+`vitest.config.ts` becomes one root `test` block carrying the shared options it
+carries today, plus a `projects` array:
+
+```ts
+test: {
+  // shared options unchanged: environment, globals, exclude, setupFiles,
+  // env: { TZ: 'UTC' }, restoreMocks, clearMocks, unstubEnvs, unstubGlobals,
+  // testTimeout, hookTimeout. The flat `include` is removed - each project
+  // declares its own.
+  projects: [
+    {
+      extends: true,
+      test: {
+        name: 'unit',
+        include: ['src/**/*.test.ts'],
+        fileParallelism: true,
+        sequence: { shuffle: { files: true, tests: false } },
+      },
+    },
+    {
+      extends: true,
+      test: {
+        name: 'integration',
+        include: ['tests/integration/**/*.test.ts'],
+        fileParallelism: false,
+        globalSetup: ['tests/support/globalSetup.ts'],
+      },
+    },
+  ],
+}
+```
+
+**Verified by execution during this stage** against the installed 4.1.11 (probe
+built at the repository root, run, then removed; `git status` clean afterwards):
+
+- **The scoping works, and it is not merely type-valid.** Two unit files and two
+  integration files, each holding for 1.5s and appending a timestamp: the unit
+  files started 1 ms apart and overlapped; the integration files did not overlap
+  at all, the second starting after the first had ended. So `unit` keeps its
+  parallelism and its shuffle, and `integration` runs one file at a time — the
+  outcome PC-1 and NFR-005 both ask for.
+- **`globalSetup` belongs on the `integration` project, not at the root.** With
+  it declared at root and `extends: true` on both projects it ran **three
+  times** in one command; declared on the `integration` project alone it ran
+  exactly once, and only when integration tests run. That also keeps
+  `npm run test:unit` free of any database dependency.
+- **`extends: true` carries the root block into each project**, and the probe
+  ran with it on both; a project written without it does not inherit the shared
+  options, so it is not decoration.
+- `ProjectConfig` in the shipped types is `Omit<InlineConfig, NonProjectOptions
+  | 'sequencer' | 'deps'>`, and `NonProjectOptions` lists neither
+  `fileParallelism`, `globalSetup`, `include`, `env` nor `sequence` — so every
+  per-project option above is a supported one. The deprecation of the
+  `poolOptions` form is at `reporters.d.DtoKVV2s.d.ts:1627`
+  ("use top-level `fileParallelism` instead"), which is what makes the flat
+  config unable to express the scoping.
+- **The three existing test scripts keep working unchanged**, which is what lets
+  Step 3 hold to "no other script change" in `package.json`. `npm run test:unit`
+  (`vitest run src`) matched only the unit file and did **not** trigger the
+  integration project's `globalSetup`; `npm run test:integration`
+  (`vitest run tests/integration`) matched only the integration file and did
+  trigger it. A positional path filter selects files across projects, so neither
+  script needs a `--project` flag.
+
+No new config file is introduced, so `IMPACT_ANALYSIS:R-2` does not recur, and
+`vitest.config.ts` stays the one file the Files To Modify table already names.
+
+**The `DATABASE_URL` question revision 1 deferred is answered here, by
+execution.** `globalSetup` runs in the main process and test files run in
+workers, so the resolved URL must reach both. Root `test.env` reaches the
+**workers only** — the probe read `undefined` for a `test.env` variable inside
+`globalSetup` while a test file in the same run read it correctly. **So the
+config module body assigns `process.env.DATABASE_URL` before `defineConfig`**
+(main process, before either consumer), and `test.env` is not used for it. This
+replaces revision 1's "confirm against the installed version rather than
+assuming" with the confirmation.
+
+**Evidence.** `npx vitest --root . list --project unit` and `--project integration`
+each resolve and list only their own tree, proving the two-project split;
+`npm run db:test:up` starts the service; `npm run test:integration`
 reaches the database and reports test results rather than a connection error;
+`npm run test:unit` passes with the database **stopped**;
 with the database stopped, the run fails with **the command to run** and not a
 raw connection error (PC-1 states this explicitly — the Stop hook forwards that
 message); `npm run format:check` passes on the new YAML.
@@ -704,7 +844,7 @@ least one test.
 | Envelope: unknown property `400` **keyed by the offending property name**; `415` on a body with a wrong or missing `Content-Type`; `413` over `10kb`; `MALFORMED_JSON` on unparseable input | VR-9, VR-10, R-4 |
 | **The three converging shapes** — `[]`, bodyless POST **with** `application/json`, bodyless POST **with no** `Content-Type` | `DESIGN_REVIEW:e-2` |
 | Rate limit: `429` with the **AC-6 body**, not the limiter's default payload; no account created, no password hashed; **`X-Request-Id` present** | FR-13, EC-7, D-5, D-6 |
-| Contract: every declared response matches the approved contract, `minProperties: 1` included | AC-010, FR-16 |
+| Contract: every declared response matches the approved contract, `minProperties: 1` included | AC-10 (`api-conventions.md`), FR-16 |
 
 **`e-2` is the coverage trap of this Story.** Three request shapes reach the same
 `400` through **two different Zod mechanisms**: `[]` and a bodyless POST *without*
@@ -746,7 +886,10 @@ three SC-1 parameters; the error middleware's `ZodError` → `fieldErrors` mappi
 
 Deterministic and order-independent (NFR-005): integration tests serial with
 `TRUNCATE` between them (PC-1), unit tests keeping shuffle and parallelism, never
-against a shared or production database.
+against a shared or production database. **The mechanism is the two-project
+`test.projects` block of D-10** — `fileParallelism: false` on the `integration`
+project only — not a top-level `fileParallelism`, which would serialize the unit
+suite too and silently drop the shuffle NFR-005 relies on.
 
 ---
 
@@ -799,7 +942,7 @@ PC-1 scripts — so `npm run audit:check` is required.
 | `.gitignore` | `!.env.test` (D-4) |
 | `tsconfig.typecheck.json` | `include` gains `prisma.config.ts` (D-3) |
 | `prisma.config.ts` | New; migration connection via `env('DATABASE_URL')` (D-2) |
-| `vitest.config.ts` | `globalSetup`; `fileParallelism: false` for `tests/integration`; test URL resolution |
+| `vitest.config.ts` | `test.projects` (`unit` / `integration`); `globalSetup` and `fileParallelism: false` on `integration` only; test URL resolution in the module body (D-10) |
 | `package.json` | `db:test:up`, `db:test:down` |
 | `AGENTS.md` | Both scripts in the Build and Validation Commands table |
 | `.github/workflows/ci.yml` | `services: postgres` on 5433; stale header comment removed |
@@ -810,8 +953,10 @@ disposable instance; no real `.env` is committed; no value moves into code.
 
 ## Open Questions
 
-Neither blocks implementation. Both are recorded for `HUMAN_PLAN_APPROVAL` to
-note rather than to answer before work starts.
+None blocks implementation. Questions 1 and 2 are recorded for
+`HUMAN_PLAN_APPROVAL` to note rather than to answer before work starts;
+question 3 asks for an explicit decision, and both of its outcomes are already
+planned for.
 
 1. **`persistence-conventions.md` PC-1 predates Prisma 7** (D-9). It describes
    neither the required adapter object nor the separate migration config file.
@@ -823,6 +968,16 @@ note rather than to answer before work starts.
    grounds that Prisma cannot express a `CHECK` while PC-2 makes `schema.prisma`
    the source of truth, so it would be raw SQL the model does not describe.
    Recorded so it is not reopened downstream as a fresh idea.
+3. **D-4 commits `.env.test`, against three convention lines** (`AGENTS.md`
+   Prohibited; `persistence-conventions.md` PC-10 final bullet; PC-1 second
+   bullet), because PC-1 names the file literally as a deliverable of this Story.
+   The case is argued in full at D-4 and the file carries no secret, but the
+   lines it crosses belong to the person at this gate, not to this plan.
+   **This one does need an answer** — approval blesses the `!.env.test`
+   negation; declining it selects the recorded fallback (CI supplies
+   `DATABASE_URL` as a workflow variable, `.env.test` stays local-only) and
+   changes Step 3 and the `.gitignore` row only. `PLAN_REVIEW:p-1` stays open
+   until it is answered.
 
 **Explicitly not open**, and listed so the gate is not asked to decide something
 already decided: the `@prisma/adapter-pg` dependency (commit `0339b4a`) and the
@@ -836,7 +991,7 @@ review that raised it).
 | AC-001 | FR-1…FR-5, FR-17; VR-1, VR-2, VR-5; SR-1, SR-2 | 2, 5, 7, 8, 9, 10 | Integration happy path; persistence; unit |
 | AC-002 | FR-6, FR-7; VR-4; SR-6 | 2, 5, 6, 8, 9 | Integration duplicate — **both** the check and race paths |
 | AC-003 | FR-8; VR-1…VR-3; SR-6 | 6, 7 | Integration validation; contract |
-| AC-004 | FR-9; VR-5…VR-8; SR-3 | 6, 7 | Integration policy incl. boundaries; unit |
+| AC-004 | FR-9; VR-5, VR-6, VR-8; SR-3 (**VR-7 is deferred to US-009** by the Specification and is delivered nowhere in this Story) | 6, 7 | Integration policy incl. boundaries; unit |
 | AC-005 | FR-10; SR-1…SR-4 | 1, 2, 5, 8 | Persistence + security, against the database |
 | AC-006 | FR-11; SR-3…SR-6 | 7, 8, 9 | Security; contract |
 | AC-007 | FR-12; SR-3, SR-6, SR-7 | 5, 9 | Audit assertion; EC-4 failure tolerance |
