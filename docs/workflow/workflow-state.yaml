@@ -4,57 +4,69 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: PLAN_REVIEW
-previous_stage: IMPLEMENTATION_PLANNING
-last_completed_stage: IMPLEMENTATION_PLANNING
-status: IN_PROGRESS
-attempt: 4
-last_invoked_skill: implementation-planner
+current_stage: HUMAN_PLAN_APPROVAL
+previous_stage: PLAN_REVIEW
+last_completed_stage: PLAN_REVIEW
+status: WAITING_FOR_HUMAN
+attempt: 3
+last_invoked_skill: plan-reviewer
 last_result:
   verdict: PASS
-  stage: IMPLEMENTATION_PLANNING
-  recorded_at: 2026-09-03T12:37:02Z
+  stage: PLAN_REVIEW
+  recorded_at: 2026-09-03T13:01:50Z
 last_artifacts:
   - type: implementation_plan
     path: docs/plans/US-001-implementation-plan.md
     version: 4
-pending_human_gate: null
+  - type: plan_review
+    path: docs/reviews/plans/US-001-plan-review.md
+    version: 4
+pending_human_gate:
+  stage: HUMAN_PLAN_APPROVAL
+  status: PENDING
+  required_artifacts:
+    - type: implementation_plan
+      path: docs/plans/US-001-implementation-plan.md
+      version: 4
+    - type: plan_review
+      path: docs/reviews/plans/US-001-plan-review.md
+      version: 4
+  automated_verdict: PASS
+  blocking_findings: []
+  requested_at: 2026-09-03T13:01:50Z
 blocking_issues: []
-# attempt is 4 because it counts entries into PLAN_REVIEW and of that stage only
-# (state-schema.md rule 4): 2026-09-03T01:48:16Z, 07:03:30Z, 08:02:29Z and this
-# one. It is not reset by the forward move - PLAN_REVIEW has run before, so its
-# own series continues.
+# attempt is 3 because it counts entries into HUMAN_PLAN_APPROVAL and of that
+# stage only (state-schema.md rule 4): 2026-09-03T06:15:23Z, 09:30:30Z and this
+# one. PLAN_REVIEW's own series ended at 4.
 #
-# Derived from history.jsonl: every id whose latest event says RAISED.
-# The set stays at 11, but its membership changed: PLAN_REVIEW:p-1 CLOSED and
-# IMPLEMENTATION_PLANNING:R-P2 opened.
+# The finding set drops from 11 to 10. Three closed on this envelope and two
+# opened.
 #
-# p-1 is the finding the gate was owed, and this is where it could finally close:
-# a closure may only ride on a Skill result envelope (state-schema.md, Finding
-# lifecycle), so the HUMAN_REJECTED event could not carry it and this
-# implementation-planner envelope is the first one that could. The human answered
-# it on 2026-09-03T12:00:14Z (the !.env.test negation declined) and plan v4's D-4
-# now states that answer directly.
+# THE THREE CLOSURES ARE THE BACKLOG THE LOG HAD BEEN CARRYING. PLAN_REVIEW:p-4,
+# DB_DESIGN:PC-1 and DESIGN_REVIEW:e-1 were all settled in the repository by
+# commit b28766f (and, for e-1, triage v2) before plan review v3 was even
+# written. They stayed open only because a closure may ride only on a Skill
+# result envelope (state-schema.md, Finding lifecycle) and the two events since
+# were a human gate (skill: null) and a planner envelope that owed none of them.
+# HUMAN_PLAN_APPROVAL flagged exactly this lag on 2026-09-03T12:00:14Z and named
+# RECONCILIATION as the natural owner; PLAN_REVIEW got there first because it
+# re-verified all three in the repository during this review rather than reading
+# them from that comment. Nothing is left for RECONCILIATION to close here.
 #
-# R-P2 is new, not a re-raise of DB_DESIGN:PC-1. That one says PC-1 predates
-# Prisma 7; this one says PC-1 names .env.test as a deliverable that the D-4
-# decision means this Story deliberately does not ship. Same file, same human
-# owner, one amendment - but different substance, so a separate id.
+# DB_DESIGN:PC-1 closes and IMPLEMENTATION_PLANNING:R-P2 does not. Same
+# convention, same human owner, one amendment - but PC-1's Prisma 7 gap is
+# repaired and PC-1 naming .env.test as a deliverable this Story deliberately
+# does not ship is not.
 #
-# STILL OPEN ONLY IN THE LOG, settled in the repository by commit b28766f
-# (pushed): PLAN_REVIEW:p-4 (SC-3 line 178 now cites AC-6) and DESIGN_REVIEW:e-1
-# (accepted, US-001-findings-triage.md v2). Neither belongs to a stage that has
-# run since, so neither had an envelope to close it. RECONCILIATION is the
-# natural owner. Nine of the eleven are genuinely open; check before repairing.
+# The two new findings are both Minor and neither changes what gets built, which
+# is why the verdict is PASS rather than a loop-back: p-9 is a one-character
+# version citation and p-10 is two sentences of unrecorded cost in a decision
+# whose mechanism the review confirmed sound.
 non_blocking_findings:
   - id: "SPECIFICATION:FR-18"
     severity: MAJOR
     status: RAISED
     summary: "IMPLEMENTATION owes it: .env.example lines 16-20 still declare JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_TTL and JWT_REFRESH_TTL, which FR-18 requires this Story to remove"
-  - id: "DESIGN_REVIEW:e-1"
-    severity: MAJOR
-    status: RAISED
-    summary: "Specification v14 names four DomainError subclasses at four sites where architecture.md AD-6 names five; AD-6 is canonical and the Specification is the stale copy"
   - id: "IMPACT_ANALYSIS:R-4"
     severity: MAJOR
     status: RAISED
@@ -71,27 +83,27 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "IMPLEMENTATION_VERIFICATION owes it: email declared format and bounds describe the normalized value, so compare the generated contract semantically"
-  - id: "DB_DESIGN:PC-1"
-    severity: MINOR
-    status: RAISED
-    summary: "human decision owes it: persistence-conventions.md PC-1 predates Prisma 7 and describes neither the adapter object nor the separate migration config file"
   - id: "IMPLEMENTATION_PLANNING:R-P1"
     severity: MINOR
     status: RAISED
     summary: "TEST_WRITING precedes IMPLEMENTATION but the schema, migration and compose file arrive in plan steps 2-3, so the tests authored at TEST_WRITING cannot execute until then and must not be gated on a running suite"
-  - id: "PLAN_REVIEW:p-4"
-    severity: MINOR
-    status: RAISED
-    summary: "human decision owes it: security-conventions.md SC-3 line 178 cites api-conventions.md AC-5 for the 429 error body, but AC-5 is Error status codes and AC-6 is Error body; SC-3 line 111 cites AC-6 correctly"
   - id: "PLAN_REVIEW:p-8"
     severity: MINOR
     status: RAISED
-    summary: "IMPLEMENTATION owes it: plan v3 D-10 declares sequence.shuffle on the unit project only and omits sequence from the shared root block, so the harness project and any future tests/*.test.ts inherit no file shuffle that NFR-005 relies on; nil effect today at one harness file"
+    summary: "IMPLEMENTATION owes it: plan D-10 declares sequence.shuffle on the unit project only and omits sequence from the shared root block, so the harness project and any future tests/*.test.ts inherit no file shuffle that NFR-005 relies on; nil effect today at one harness file"
   - id: "IMPLEMENTATION_PLANNING:R-P2"
     severity: MINOR
     status: RAISED
-    summary: "human decision owes it: persistence-conventions.md PC-1 names .env.test literally as a deliverable of the implementing Story, and the D-4 decision means US-001 deliberately does not ship it, so PC-1 will describe an undelivered deliverable until reworded; belongs in the same PC-1 amendment as DB_DESIGN:PC-1"
+    summary: "human decision owes it: persistence-conventions.md PC-1 names .env.test literally as a deliverable of the implementing Story, and the D-4 decision means US-001 deliberately does not ship it, so PC-1 will describe an undelivered deliverable until reworded"
+  - id: "PLAN_REVIEW:p-9"
+    severity: MINOR
+    status: RAISED
+    summary: "IMPLEMENTATION_PLANNING owes it: plan v4 raised the findings-triage input to version 2 in the front matter but left the Source Artifacts table at line 143 saying version 1; the file is at version 2, so the human-facing record is the wrong one"
+  - id: "PLAN_REVIEW:p-10"
+    severity: MINOR
+    status: RAISED
+    summary: "IMPLEMENTATION_PLANNING owes it: the test DATABASE_URL is resolved in the vitest.config.ts module body, evaluated for every invocation, so under the D-4 fallback an absent .env.test makes process.loadEnvFile() throw ENOENT and fails test:unit and the harness project too; D-4 records two accepted costs where there are three and D-10 still claims unit runs are free of any database dependency"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T12:37:02Z
+updated_at: 2026-09-03T13:01:50Z
 completed_at: null
 archived_at: null
