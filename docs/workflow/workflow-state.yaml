@@ -4,51 +4,47 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: IMPLEMENTATION_VERIFICATION
-previous_stage: IMPLEMENTATION
-last_completed_stage: IMPLEMENTATION
+current_stage: SECURITY_REVIEW
+previous_stage: IMPLEMENTATION_VERIFICATION
+last_completed_stage: IMPLEMENTATION_VERIFICATION
 status: IN_PROGRESS
-attempt: 3
-last_invoked_skill: express-implementor
+attempt: 1
+last_invoked_skill: implementation-verifier
 last_result:
   verdict: PASS
-  stage: IMPLEMENTATION
-  recorded_at: 2026-09-03T23:22:57Z
+  stage: IMPLEMENTATION_VERIFICATION
+  recorded_at: 2026-09-03T23:32:39Z
 last_artifacts:
-  - type: implementation_report
-    path: docs/evidence/US-001-implementation-report.md
-    version: 4
+  - type: implementation_verification
+    path: docs/verification/US-001-implementation-verification.md
+    version: 2
 pending_human_gate: null
-# express-implementor's fourth entry re-confirmed the change set against
-# TEST_WRITING's V-1 fix rather than writing anything new: `git diff
-# --name-status HEAD` over src/, prisma/, vitest.config.ts and package.json is
-# empty - production code is byte-identical to what attempt 1 already wrote.
-# docs/evidence/US-001-implementation-report.md moves v3 -> v4, recording the
-# realigned test artifacts as inputs and the checks re-run clean.
+# implementation-verifier's third entry confirms the green suite V-1's fix
+# unblocked: build/typecheck/lint/openapi:check/check:cycles all 0, the
+# migration applies clean, and the full integration suite that could not run
+# in the implementing environment ran here in full - 40/40 integration, 73/73
+# overall, exit 0, against the PC-1 disposable Postgres. All seven Acceptance
+# Criteria are behaviourally VERIFIED.
+#
+# implementation_verification stays at its v2 content, already committed at
+# IMPLEMENTATION_VERIFICATION's first entry above - no further doc change
+# lands here for the same reason noted there: the file is overwritten
+# wholesale per revision, so its intermediate content between v1 and this
+# entry's confirmation is not separately recoverable.
 blocking_issues: []
-# Derived from history.jsonl: every id whose latest event says RAISED. This
-# transition raised and closed nothing of its own; the set is unchanged at 9.
+# Derived from history.jsonl: every id whose latest event says RAISED.
+# Four findings close, all discharged by the green integration run this entry
+# confirms: IMPACT_ANALYSIS:R-4 (both Zod fieldErrors mappings pass
+# integration and unit), DESIGN_REVIEW:e-2 (the three converging request
+# shapes pass in auth-register-envelope.test.ts), DESIGN_REVIEW:d-4 (the
+# generated contract compared semantically - const vs enum, oneOf vs anyOf -
+# are equivalent), IMPLEMENTATION_PLANNING:R-P1 (the story-level integration
+# suite ran in full). The set drops from 9 to 5.
 non_blocking_findings:
-  - id: "IMPACT_ANALYSIS:R-4"
-    severity: MAJOR
-    status: RAISED
-    summary: "IMPLEMENTATION_VERIFICATION owes it: both Zod fieldErrors mappings are implemented in errorHandler.ts toFieldErrors and pass at the unit level; closing it needs the integration behaviour (auth-register-envelope.test.ts) verified working, which needs the PC-1 database"
   - id: "IMPACT_ANALYSIS:R-7"
     severity: MINOR
     status: RAISED
     summary: "PR_PREPARATION owes it: the PR summary should cite the 2026-09-01 authorization and PC-1 so the breadth does not read as scope creep"
-  - id: "DESIGN_REVIEW:e-2"
-    severity: MINOR
-    status: RAISED
-    summary: "IMPLEMENTATION_VERIFICATION owes it: the three converging request shapes are covered by named tests (auth-register-envelope.test.ts, validateRequest.test.ts); the unit half passes, the integration half needs the PC-1 database to run"
-  - id: "DESIGN_REVIEW:d-4"
-    severity: MINOR
-    status: RAISED
-    summary: "IMPLEMENTATION_VERIFICATION owes it: the generated docs/api/openapi.json describes the normalized email; role/code render as single-value enum not const and the 400 as anyOf not oneOf - compare the contract semantically, not key-for-key"
-  - id: "IMPLEMENTATION_PLANNING:R-P1"
-    severity: MINOR
-    status: RAISED
-    summary: "materialised at IMPLEMENTATION (both attempts) and again at this TEST_WRITING re-entry: the integration suite could not execute here because the plan/PC-1 assume a disposable Postgres the environment did not have; carried, not masked as PASS; the first execution moves to IMPLEMENTATION_VERIFICATION / CI"
   - id: "IMPLEMENTATION_PLANNING:R-P2"
     severity: MINOR
     status: RAISED
@@ -66,6 +62,6 @@ non_blocking_findings:
     status: RAISED
     summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate / validate fail when DATABASE_URL is unset and the generated client cannot be produced on a bare checkout; ci.yml adds a job-level DATABASE_URL and an explicit generate step, no project postinstall (it would break npm ci). Flag for a possible PC-1 note"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T23:22:57Z
+updated_at: 2026-09-03T23:32:39Z
 completed_at: null
 archived_at: null
