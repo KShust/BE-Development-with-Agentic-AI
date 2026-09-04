@@ -1,23 +1,124 @@
 ---
 artifact_type: test_generation_report
 story: US-001
-version: 3
+version: 4
 status: DRAFT
 created_at: 2026-09-03T13:55:00Z
-updated_at: 2026-09-03T21:35:00Z
+updated_at: 2026-09-03T23:05:00Z
 produced_by: test-writer
 inputs:
   - path: docs/tests/US-001-test-strategy.md
-    version: 3
+    version: 4
   - path: docs/tests/US-001-ac-test-matrix.md
-    version: 3
+    version: 4
   - path: docs/specifications/US-001-spec.md
     version: 14
   - path: docs/plans/US-001-implementation-plan.md
     version: 4
   - path: docs/reviews/plans/US-001-plan-review.md
     version: 4
-supersedes: docs/evidence/US-001-test-generation-report.md@2
+  - path: docs/verification/US-001-implementation-verification.md
+    version: 1
+supersedes: docs/evidence/US-001-test-generation-report.md@3
+---
+
+## Revision 4 (2026-09-03) — IMPLEMENTATION_VERIFICATION:V-1 correction
+
+**Overall result of this revision: `PASS`.** Scope is one finding —
+`IMPLEMENTATION_VERIFICATION:V-1`, raised by `implementation-verifier`
+(`docs/verification/US-001-implementation-verification.md` §17) and routed back
+here by a recorded human decision (`history.jsonl` 2026-09-03T22:54:40Z,
+`decided_by: human:KShust`), because `stage-map.yaml` gives
+`IMPLEMENTATION_VERIFICATION` no automated edge to `TEST_WRITING`. One test file
+changed — `tests/integration/auth-register-audit.test.ts`. No production file,
+no other test, no fixture, and no assertion was touched. Revisions 1–3 below are
+retained unchanged as the audit trail.
+
+### What V-1 was
+
+The EC-4 case *"does not fail the request when the audit write itself throws,
+and logs that failure as an error"* forced the audit write to fail by replacing
+`logger.info` on the shared `src/lib/logger.ts` singleton with a stub that
+threw **unconditionally**:
+
+```ts
+vi.spyOn(logger, 'info').mockImplementation(() => {
+  throw new Error('audit sink unavailable');
+});
+```
+
+`src/app.ts` binds `pino-http` to that same singleton. Its request-completion
+log line calls `logger.info` from a `res` `'finish'` handler that fires **after**
+the test's `await` has resolved, outside any `try/catch`. The unconditional stub
+threw there too → uncaught exception → `npm run test` exited 1 even though all
+73 tests passed (`Errors 1`), and Vitest warned the run could produce false
+positives. Deterministic; isolated to this one file (the verifier reproduced it:
+the file alone gave `2 passed`, `1 error`, exit 1; the other six integration
+files ran clean).
+
+The production code was and is correct — `auth.service.ts` wraps
+`deps.auditLog()` in `try/catch` and logs the failure through
+`deps.logger.error`; the request still returns `201`. The defect was entirely in
+the test's mock scope, so the fix belongs here, not in `IMPLEMENTATION`.
+
+### The fix (verifier option b — scope the throw to the audit payload)
+
+The stub now throws **only** for the `user.registered` payload and is a no-op
+for every other `.info` call — notably `pino-http`'s request-completion line:
+
+```ts
+vi.spyOn(logger, 'info').mockImplementation((...args) => {
+  const first: unknown = args[0];
+  if (
+    typeof first === 'object' &&
+    first !== null &&
+    'event' in first &&
+    (first as { event?: unknown }).event === 'user.registered'
+  ) {
+    throw new Error('audit sink unavailable');
+  }
+});
+```
+
+Both existing assertions are unchanged and both still hold: the request returns
+`201`, and `logger.error` is called. No assertion was weakened, and no test was
+skipped or deleted. The file header comment was updated to describe the two
+code paths that reach the root logger's `.info` during a registration request
+and why the EC-4 stub must be selective. Options (a) — inject a rejecting
+`auditLog` dependency — and (c) — restore the stub before the `'finish'` handler
+runs — were not taken: (a) needs a production dependency-injection seam this
+Story does not expose, and (c) races the response lifecycle. Option (b) needs
+neither a production change nor a timing assumption.
+
+The `ac_test_matrix` row for this case (file, test name, expected result) is
+**unchanged** — the fix is an isolation refinement, not a scenario change. The
+`test_strategy` and this report were realigned to v4 and their stale RED-phase
+banners corrected (the implementation now exists; the suite runs green).
+
+### Commands run for this revision
+
+| Command | Exit | Result |
+|---|---|---|
+| `npm run format:check` | 0 | "All matched files use Prettier code style!" |
+| `npm run typecheck` | 0 | 0 errors |
+| `npm run lint` | 0 | 0 problems |
+| `npm run check:cycles` | 0 | "no circular dependency was found" |
+| `npm run openapi:check` | 0 | "docs/api/openapi.json matches the schemas (2 schema file(s))" |
+| `npm run build` | 0 | `tsc -p tsconfig.json`, no error |
+| `npm run db:test:up` + `npx prisma migrate deploy` | 0 | migration `20260903192254_init_user` applied to the disposable 5433 Postgres |
+| `npx vitest run tests/integration/auth-register-audit.test.ts` | 0 | **1 file, 2 tests passed, 0 errors** (was: 2 passed / 1 error / exit 1) |
+| `npm run test` | 0 | **13 files, 73 tests passed, 0 errors, exit 0** — V-1 resolved |
+
+The full suite now executes end to end against a real database with a clean
+exit. `IMPLEMENTATION_VERIFICATION:V-1` is **RESOLVED** by this revision.
+
+### Coverage
+
+No Acceptance Criterion changed coverage. AC-007 keeps both its integration
+scenarios (audit event content and shape; failed audit write does not fail the
+request) and its three unit scenarios. `IMPLEMENTATION_VERIFICATION:V-1` is
+**RESOLVED**.
+
 ---
 
 ## Revision 3 (2026-09-03) — IMPLEMENTATION:T-1 correction

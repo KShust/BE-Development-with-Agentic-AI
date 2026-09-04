@@ -1,10 +1,10 @@
 ---
 artifact_type: test_strategy
 story: US-001
-version: 3
+version: 4
 status: DRAFT
 created_at: 2026-09-03T13:55:00Z
-updated_at: 2026-09-03T21:48:00Z
+updated_at: 2026-09-03T23:05:00Z
 produced_by: test-writer
 inputs:
   - path: docs/stories/US-001-register-customer.md
@@ -25,23 +25,43 @@ inputs:
     version: 4
   - path: docs/reviews/plans/US-001-plan-review.md
     version: 4
-supersedes: docs/tests/US-001-test-strategy.md@2
+  - path: docs/verification/US-001-implementation-verification.md
+    version: 1
+supersedes: docs/tests/US-001-test-strategy.md@3
 ---
 
 # Test Strategy: Customer Registration (US-001)
 
-**Revision 3 (2026-09-03) — `IMPLEMENTATION:T-1` correction; this stage returns
-`PASS`.** The only change from v2 is in *Negative scenarios* (AC-004): the
-caseless-script password case now records SC-1's named limitation as a rejection
-(`400`), matching the corrected
+**Revision 4 (2026-09-03) — `IMPLEMENTATION_VERIFICATION:V-1` correction; this
+stage returns `PASS`.** The only change from v3 is the isolation approach of one
+AC-007 scenario: the EC-4 case in
+`tests/integration/auth-register-audit.test.ts` (*"a failed audit write does not
+fail the request"*) previously stubbed `logger.info` on the shared singleton to
+throw **unconditionally**, which also broke `pino-http`'s request-completion log
+line (same singleton, called from a `res` `'finish'` handler outside any
+`try/catch`) and made `npm run test` exit 1 while all 73 tests passed. The stub
+now throws **only** for the `user.registered` payload and is a no-op for every
+other `.info` call. Both EC-4 assertions are unchanged (`201` still returned;
+`logger.error` called). No scenario, no AC coverage, and no other file changed;
+the AC-test matrix rows are identical. Evidence and the full V-1 write-up are in
+`docs/evidence/US-001-test-generation-report.md` (v4).
+
+Everything below is unchanged from v3. The implementation now exists (the
+workflow reached `IMPLEMENTATION_VERIFICATION` and looped back here for V-1
+alone), so the RED-phase / `BLOCKED` language retained under *Known limitations*
+and elsewhere is historical: `npm run typecheck`, `npm run lint` and the full
+`npm run test` suite are green against a real database — see the report's
+Revision 4 command table.
+
+**Revision 3 (2026-09-03) — `IMPLEMENTATION:T-1` correction.** The only change
+from v2 was in *Negative scenarios* (AC-004): the caseless-script password case
+records SC-1's named limitation as a rejection (`400`), matching the corrected
 `tests/integration/auth-register-password-validation.test.ts` and the paired
-AC-test matrix row v3. Evidence and the full T-1 write-up are in
-`docs/evidence/US-001-test-generation-report.md` (v3). Everything else below is
-unchanged from v2, including the `TEST_WRITING:B-1` / `B-2` history — both were
-settled at `IMPLEMENTATION` (`prisma/schema.prisma` written and `prisma
-generate` run; `npm run typecheck` and `npm run lint` reach 0). The v2 banner
-that stood here said this stage returned `BLOCKED`; that was true at attempts 1–2
-and is retained only as history by the report.
+AC-test matrix row. Everything else was unchanged from v2, including the
+`TEST_WRITING:B-1` / `B-2` history — both settled at `IMPLEMENTATION`
+(`prisma/schema.prisma` written and `prisma generate` run). The v2 banner said
+this stage returned `BLOCKED`; that was true at attempts 1–2 and is retained
+only as history by the report.
 
 ## Scope
 

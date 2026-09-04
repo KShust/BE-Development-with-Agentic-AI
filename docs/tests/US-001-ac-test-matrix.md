@@ -1,10 +1,10 @@
 ---
 artifact_type: ac_test_matrix
 story: US-001
-version: 3
+version: 4
 status: DRAFT
 created_at: 2026-09-03T13:55:00Z
-updated_at: 2026-09-03T21:35:00Z
+updated_at: 2026-09-03T23:05:00Z
 produced_by: test-writer
 inputs:
   - path: docs/specifications/US-001-spec.md
@@ -19,16 +19,25 @@ inputs:
     version: 2
   - path: docs/plans/US-001-implementation-plan.md
     version: 4
-supersedes: docs/tests/US-001-ac-test-matrix.md@2
+  - path: docs/verification/US-001-implementation-verification.md
+    version: 1
+supersedes: docs/tests/US-001-ac-test-matrix.md@3
 ---
 
 # Acceptance-Criterion → Test Matrix: Customer Registration (US-001)
 
-Every row's **Status** is `WRITTEN — RED (blocked)`: the test source exists at
-the named path but cannot compile, lint, or run yet — see
-`docs/evidence/US-001-test-generation-report.md`. No row is `WRITTEN — GREEN`
-or `NOT COVERED`; every Acceptance Criterion below has at least one mapped
-scenario (NFR-006).
+**Revision 4 (2026-09-03) — `IMPLEMENTATION_VERIFICATION:V-1` correction.** No
+row changed: the fix for V-1 refined the mock scope inside the existing EC-4
+case in `tests/integration/auth-register-audit.test.ts` (AC-007, second row) —
+same file, same test name, same expected result. The write-up is in
+`docs/evidence/US-001-test-generation-report.md` (v4).
+
+Every Acceptance Criterion below has at least one mapped scenario (NFR-006); no
+row is `NOT COVERED`. The rows were authored in the RED phase before
+`IMPLEMENTATION`; the workflow has since reached `IMPLEMENTATION_VERIFICATION`
+and every mapped test now compiles and passes green against a real database
+(the loop-back to this stage was for V-1 alone) — see the report's Revision 4
+command table.
 
 ## AC-001 — Successful registration
 
