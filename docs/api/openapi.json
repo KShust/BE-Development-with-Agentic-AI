@@ -6,9 +6,443 @@
     "description": "Generated from the Zod schemas in src/modules/*/*.schemas.ts. Do not edit by hand (docs/architecture/api-conventions.md AC-10)."
   },
   "components": {
-    "schemas": {},
+    "headers": {
+      "XRequestId": {
+        "description": "The request id correlating this response with every log line for the request (AC-9, FR-15).",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "RegisterResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The account identifier — a string, never a number (AC-11, PC-3)."
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "description": "The stored, normalized email (BR-2, VR-4)."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER"
+            ],
+            "description": "The account role. CUSTOMER is the only role defined (FR-3, SC-2)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the account was created, ISO 8601 with an explicit UTC offset (AC-11, PC-6)."
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "The created account as an explicit DTO (AD-4, SR-5). Exactly four fields; no credential field is present (FR-11, SR-4, AC-006)."
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_FAILED"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "fieldErrors": {
+                    "$ref": "#/components/schemas/FieldErrors"
+                  }
+                },
+                "required": [
+                  "fieldErrors"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "A 400 raised by boundary validation. details.fieldErrors is always present and non-empty (VR-11)."
+      },
+      "FieldErrors": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "minProperties": 1,
+        "description": "Per-field validation messages, keyed by the field that failed (AC-6, VR-11). Never empty on a VALIDATION_FAILED response."
+      },
+      "MalformedJsonErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "MALFORMED_JSON"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "A 400 raised when the body is not parseable JSON. No field can be named, so details is omitted."
+      },
+      "ConflictErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "EMAIL_ALREADY_REGISTERED"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "The email is already registered (FR-6, BR-009). No Prisma text reaches this body (SR-6)."
+      },
+      "PayloadTooLargeErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "PAYLOAD_TOO_LARGE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "The request body exceeds the 10kb limit (VR-10, SC-5)."
+      },
+      "UnsupportedMediaTypeErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "UNSUPPORTED_MEDIA_TYPE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "A body was sent with a missing or non-JSON Content-Type (VR-10, AC-2)."
+      },
+      "RateLimitErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "RATE_LIMIT_EXCEEDED"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "The register rate limit was exceeded (FR-13, SC-3)."
+      },
+      "InternalErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INTERNAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "An unmapped error. The body is generic; diagnostics stay server-side (SC-9, AD-6)."
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "minLength": 1,
+            "maxLength": 254,
+            "description": "The customer email. Trimmed and lowercased before it is validated, compared and stored; the bound applies to that normalized value (BR-2, VR-3, VR-4)."
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 12,
+            "maxLength": 128,
+            "description": "The plaintext password, accepted only on this request and never returned (SR-3). Policy: 12-128 Unicode code points, at least 3 of the 4 character classes (lowercase, uppercase, digit, other) per security-conventions.md SC-1 (VR-6, VR-8)."
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false,
+        "description": "The registration request body. Exactly two properties are accepted; an unknown property is rejected rather than stripped (VR-9, AD-5)."
+      }
+    },
     "parameters": {}
   },
-  "paths": {},
+  "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "registerCustomer",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register a new customer account",
+        "description": "Creates one customer account from an email and a password and returns the created resource (FR-1, FR-2, AC-001). Public and unauthenticated (SC-4); rate limited on /api/v1/auth (FR-13, SC-3). The email is trimmed and lowercased before validation, the uniqueness check and storage (BR-2, VR-4).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The account was created. The body carries exactly four fields (FR-5, AC-006).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request body was rejected at the HTTP boundary. VALIDATION_FAILED names every failing field in details.fieldErrors (VR-11); MALFORMED_JSON carries no details.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MalformedJsonErrorResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An account already exists for the normalized email (FR-6, AC-002, EC-3).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The request body exceeds the 10kb limit (VR-10, SC-5).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayloadTooLargeErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The request carries a body with a missing or non-JSON Content-Type (VR-10, AC-2).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnsupportedMediaTypeErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The caller exceeded the register rate limit (FR-13, SC-3, EC-7).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unmapped error. The body is generic and leaks nothing on SC-9 (AD-6).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "webhooks": {}
 }

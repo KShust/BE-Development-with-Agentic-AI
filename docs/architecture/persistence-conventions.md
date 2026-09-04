@@ -56,6 +56,43 @@ Explicit persistence decisions for this project. `db-designer` and
   - a truncation fixture under `tests/support/`;
   - a `services: postgres` block in `.github/workflows/ci.yml`.
 
+- **Prisma 7 splits the connection in two — decided.** Resolved by a human on
+  2026-09-03. The two bullets above describe *which* URL is used; this one
+  describes *how* it reaches the two consumers, because Prisma 7 no longer lets
+  one declaration serve both.
+
+  `url` in the `datasource` block is rejected outright. The toolchain says what
+  to do instead, and it is quoted rather than paraphrased because both halves are
+  binding (`prisma validate`, CLI 7.10.0, error `P1012`):
+
+  > The datasource property `url` is no longer supported in schema files. Move
+  > connection URLs for Migrate to `prisma.config.ts` and pass either `adapter`
+  > for a direct database connection or `accelerateUrl` for Accelerate to the
+  > `PrismaClient` constructor.
+
+  | Consumer | Where its connection comes from |
+  |---|---|
+  | The client (`src/lib/prisma.ts`) | A **driver adapter** passed to the `PrismaClient` constructor — `@prisma/adapter-pg`, approved under SC-6 by commit `0339b4a`. Not `accelerateUrl`: this project connects directly |
+  | Migrations (`prisma migrate`) | A root **`prisma.config.ts`**, which is repository tooling and deliberately outside `tsconfig.json`'s `rootDir: src` |
+
+  `schema.prisma` therefore declares `provider` and **no `url`**. It remains the
+  source of truth for the model (PC-2); it is simply no longer the place a
+  connection string is written.
+
+  **This does not amend `architecture.md` AD-7, and no exemption is needed.**
+  `prisma.config.ts` reads no `process.env` at all: `prisma/config` exports its
+  own `env()` helper, and the file uses that. Verified by execution on the
+  installed `prisma` 7.10.0 — the helper resolves the value, and on an unset
+  variable throws `PrismaConfigEnvError` naming the variable rather than yielding
+  `undefined`, which is the fail-fast behaviour AD-7 requires. Importing
+  `src/config/env.ts` there would be worse and is rejected: that module validates
+  all six application variables at startup, so a `prisma migrate` invocation
+  would fail for want of `CORS_ALLOWED_ORIGINS`, which a migration does not need.
+
+  Because `prisma.config.ts` is a root-level `.ts` file, `tsconfig.typecheck.json`
+  must list it in `include` — `eslint.config.js` points `parserOptions.project`
+  at that config, and a file outside the program fails `npm run lint` outright.
+
 ## PC-2 Schema & migrations
 
 - `prisma/schema.prisma` is the source of truth for the data model.

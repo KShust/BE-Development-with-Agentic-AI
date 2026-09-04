@@ -4,36 +4,98 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: API_DESIGN
-previous_stage: HUMAN_SPEC_APPROVAL
-last_completed_stage: HUMAN_SPEC_APPROVAL
+current_stage: PR_REVIEW
+previous_stage: RECONCILIATION
+last_completed_stage: RECONCILIATION
 status: IN_PROGRESS
+# attempt := 1 for PR_REVIEW (state-schema.md rule 4: count of history.jsonl
+# events whose to_stage is PR_REVIEW, including the event this transition
+# appends). PR_REVIEW has never been entered for this Story before.
 attempt: 1
-last_invoked_skill: spec-verifier
+last_invoked_skill: reconciliation-reviewer
 last_result:
   verdict: PASS
-  stage: SPEC_REVIEW
-  recorded_at: 2026-09-02T13:18:32Z
+  stage: RECONCILIATION
+  recorded_at: 2026-09-04T06:13:25Z
 last_artifacts:
-  - type: specification
-    path: docs/specifications/US-001-spec.md
-    version: 14
-  - type: specification_review
-    path: docs/reviews/specifications/US-001-spec-review.md
-    version: 11
+  - type: reconciliation
+    path: docs/reviews/reconciliation/US-001-reconciliation.md
+    version: 1
+  - type: traceability
+    path: docs/reconciliation/US-001-traceability.md
+    version: 1
 pending_human_gate: null
+# RECONCILIATION (skill: reconciliation-reviewer) produced
+# docs/reviews/reconciliation/US-001-reconciliation.md v1 (status APPROVED) and
+# docs/reconciliation/US-001-traceability.md v1 (status APPROVED) with verdict
+# PASS.
+#
+# Envelope validation: stage RECONCILIATION == current_stage; skill
+# reconciliation-reviewer == stages.RECONCILIATION.skill; story US-001; verdict
+# PASS (artifact-lifecycle.md §2); both artifact paths resolve to
+# artifact-paths.yaml `reconciliation` / `traceability`, owned by
+# reconciliation-reviewer. loop_back_stage / loop_back_key null (not a
+# CHANGES_REQUIRED verdict); blocking_issues empty. All 19 declared inputs
+# present and non-SUPERSEDED; HUMAN_SPEC_APPROVAL and HUMAN_PLAN_APPROVAL both
+# recorded in history.jsonl; implementation_verification v2 and security_review
+# v1 both current and PASS.
+#
+# Reconciliation result: 7/7 Acceptance Criteria RECONCILED (authoritative
+# matrix docs/reconciliation/US-001-traceability.md). Artifact chain current on
+# every forward edge; the backward-edge staleness notes (implementation-plan vs
+# plan-review v4; the design artifacts vs design-review v2; the two TEST_WRITING
+# artifacts vs implementation-verification v2) are non-substantive warnings, not
+# errors. Implementation is the approved plan v4 change set with three disclosed
+# Required Supporting Changes and no hidden refactoring. Independent evidence
+# gathered this stage (all exit 0): typecheck, lint, check:cycles, openapi:check,
+# prisma migrate status, npm run test (13 files / 73 passed / 0 errors),
+# audit:check (2 accepted). build / validate:harness reused (no tracked change).
+#
+# 0 Critical, 0 Major. One new Minor finding raised: RECONCILIATION:r-1 - branch
+# commit f2b2972 adds .codex/ and .agents/ to .gitignore, a repo-hygiene change
+# no US-001 artifact names and that plan v4 lists .gitignore as not changed;
+# human-authored, self-justified, zero behavioural effect; non-blocking, flagged
+# for the PR author. The accepted documentary inconsistency DESIGN_REVIEW:e-1
+# (spec v14 says four DomainError subclasses; AD-6 and src/lib/errors.ts say
+# five) is recorded in the reconciliation drift register and NOT re-raised -
+# its latest history event (line 40) is already ACCEPTED (human:KShust
+# 2026-09-03, US-001-findings-triage.md v2).
+#
+# The transition advances to PR_REVIEW (stage-map.yaml: RECONCILIATION verdict
+# PASS -> next). Open non-blocking count 6 -> 7.
 blocking_issues: []
+# Derived from history.jsonl: every id whose latest event says RAISED. This
+# transition raised RECONCILIATION:r-1 and closed nothing. Count 7.
 non_blocking_findings:
-  - "HUMAN_SPEC_APPROVAL was approved on 2026-09-02 by human:KShust against specification v14 and review v11 (automated verdict PASS, 0 Critical, 0 Major, 4 Minor). The approval comment is recorded in full in docs/workflow/history.jsonl."
-  - "FR-18 is decided, not tacit: the four JWT variables (JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_TTL, JWT_REFRESH_TTL) are removed from .env.example. Nothing this Story ships reads them, and SC-3 keeps them out of src/config/env.ts until the Story that validates each. US-002 re-adds them together with the code that reads them. The item was carried to two consecutive gates; the second gate answered it."
-  - "Review v11's four Minors are accepted as design inputs for API_DESIGN and IMPLEMENTATION_PLANNING, not as blockers. m-1 carries real downstream weight: the specification requires express.json()'s errors to be translated into PayloadTooLargeError and ValidationError but names no owner for that translation, while the 415's owner is named - API_DESIGN and the plan should settle which component performs it."
-  - "Review v11's remaining three Minors, for the record: m-2 the revision-14 preamble note miscounts its own changes (names FR-21, which carried no decision id; omits BR-2, which did; wrong counts for edge cases and component rows); m-3 FR-5 closes with an obligation on US-003 that nothing in this Story can satisfy or test; m-4 FR-5 names the id field without stating its representation while citing AC-11 only for createdAt."
-  - "Review independence is weaker at this gate than at the previous one, and the review artifact says so itself: specification v14 and review v11 were produced in the same session turn by the same model under different Skills. The PASS should not be read as an independent second opinion. Recorded at approval; it does not reopen the gate."
-  - "history.jsonl gap, recorded not repaired: no SPEC_REVIEW -> SPECIFICATION CHANGES_REQUIRED event was ever appended for review v8, so SPECIFICATION's derived run count stays one lower than its real number of runs, and its attempt series carries a deliberate one-step jump at the rejection transition. history.jsonl is append-only, so the missing event was not invented."
-  - "Timestamp defect, recorded not repaired: the history events written at SPECIFICATION attempts 3 and 4 carry 2026-09-02T09:12:00Z and 10:05:00Z, both ahead of the real clock, because those runs hardcoded a string instead of reading the system clock as artifact-schema.md requires. Whether to correct them is a human decision."
-  - "Harness gap now due, named by the clarification report and deferred until US-001 cleared this gate: stage-map.yaml routes no loop_back to CLARIFICATION from a stage that discovers the need, while us-clarifier is the registry's only permitted writer - so registry revisions 3, 4, 5 and 7 were all written outside a stage run. The workflow has no path back into the file it defines as authoritative."
-  - "spec-verifier SKILL.md contradicts itself: its result-envelope example shows artifact_status: APPROVED while its own report template writes status: DRAFT. Correcting the Skill file is a harness change and out of scope for US-001."
+  - id: "IMPACT_ANALYSIS:R-7"
+    severity: MINOR
+    status: RAISED
+    summary: "PR_PREPARATION owes it: the PR summary should cite the 2026-09-01 authorization and PC-1 so the breadth does not read as scope creep"
+  - id: "IMPLEMENTATION_PLANNING:R-P2"
+    severity: MINOR
+    status: RAISED
+    summary: "human decision owes it: persistence-conventions.md PC-1 names .env.test literally as a deliverable of the implementing Story, and the D-4 decision means US-001 deliberately does not ship it, so PC-1 will describe an undelivered deliverable until reworded"
+  - id: "PLAN_REVIEW:p-9"
+    severity: MINOR
+    status: RAISED
+    summary: "IMPLEMENTATION_PLANNING owes it: plan v4 raised the findings-triage input to version 2 in the front matter but left the Source Artifacts table at line 143 saying version 1; the file is at version 2, so the human-facing record is the wrong one"
+  - id: "IMPLEMENTATION:E-1"
+    severity: MINOR
+    status: RAISED
+    summary: "module-map.md puts the Prisma disconnect in src/server.ts and lets it import src/lib, but eslint.config.js's PRISMA rule blocks **/lib/prisma.* for server.ts with no carve-out; bridged with a one-line src/lib/shutdown.ts re-export. Clean fix is an eslint.config.js carve-out for server.ts (a human change), after which shutdown.ts is deleted"
+  - id: "IMPLEMENTATION:G-1"
+    severity: MINOR
+    status: RAISED
+    summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate / validate / migrate fail when DATABASE_URL is unset and the generated client cannot be produced on a bare checkout; reproduced at IMPLEMENTATION_VERIFICATION attempt 3. ci.yml adds a job-level DATABASE_URL and an explicit generate step, no project postinstall (it would break npm ci). Flag for a possible PC-1 note"
+  - id: "SECURITY_REVIEW:s-1"
+    severity: MINOR
+    status: RAISED
+    summary: "IMPLEMENTATION owes it (non-blocking): src/middleware/errorHandler.ts catch-all 500 branch returns the generic body without calling logger.error on the caught err, so an induced unhandled failure on the public register route leaves no server-side diagnostic trace beyond a detail-free pino-http completion line; fix is one redacted logger.error({ err }, 'unhandled error') plus an errorHandler.test.ts case"
+  - id: "RECONCILIATION:r-1"
+    severity: MINOR
+    status: RAISED
+    summary: "PR_PREPARATION / human owes it: branch commit f2b2972 adds .codex/ and .agents/ to .gitignore - a repo-hygiene change for external agent-runner harness ports that no US-001 artifact names and that plan v4 lists .gitignore as not changed. Human-authored with an in-diff rationale, zero behavioural effect. The PR author decides whether it rides in the US-001 PR (with a note) or splits to its own chore PR"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-02T13:30:05Z
+updated_at: 2026-09-04T06:13:25Z
 completed_at: null
 archived_at: null

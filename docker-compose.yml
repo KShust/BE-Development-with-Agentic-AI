@@ -1,0 +1,26 @@
+# Disposable PostgreSQL for automated tests (persistence-conventions.md PC-1).
+#
+# `npm run db:test:up` starts it, `npm run db:test:down` removes it. Host port
+# 5433 (never 5432) keeps it clear of a developer's local database. Data lives in
+# tmpfs, so every `up` is a clean instance and `down` leaves nothing behind.
+#
+# `.env.test` points DATABASE_URL at this service; CI uses GitHub Actions'
+# native `services: postgres` on the same host port instead (plan D-4), so this
+# file is a local-development convenience only.
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: customer_portal_test
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d customer_portal_test']
+      interval: 2s
+      timeout: 3s
+      retries: 15

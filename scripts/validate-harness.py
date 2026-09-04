@@ -667,7 +667,7 @@ def check_artifact_timestamps(story, artifacts) -> None:
             )
 
 
-def check_input_versions(story, artifacts) -> None:
+def check_input_versions(story, artifacts, stages, stage_order) -> None:
     """`inputs[].version` must match the upstream artifact's current version.
 
     The staleness contract in artifact-schema.md: a downstream artifact records
@@ -678,14 +678,71 @@ def check_input_versions(story, artifacts) -> None:
     saying why the change is not consumed here. Absent the rebuttal, the
     mismatch stands.
 
-    An error, not a warning: both remedies are available at any time - re-run
-    the stage against the current upstream, or record the assessment.
+    An error, not a warning - **except where the workflow has already committed
+    to re-running the stage that owns the stale artifact.** A loop-back revises
+    an upstream artifact, which makes every downstream artifact that consumed it
+    stale in the same instant; those stages have not re-run yet precisely
+    because the workflow is on its way back to them. Neither remedy is reachable
+    from inside the turn that creates the staleness: the orchestrator runs at
+    most one stage per invocation, and no Skill may write an artifact another
+    Skill owns. Failing there would make every loop-back end red with no
+    available repair, which trains a reader to ignore the check - the same
+    reasoning check_history_integrity gives for warning rather than failing.
+
+    So the severity depends on where the owning stage sits relative to
+    `current_stage` in `stage_order`:
+
+    - **at or after `current_stage`** - the workflow reaches that stage before
+      anything consumes its output again, so the staleness is pending, not
+      unnoticed. A warning, which stays visible until the re-run clears it.
+    - **before `current_stage`** - the workflow has moved past the stage that
+      should have re-run, and the stale artifact is now feeding later stages.
+      That is the case the contract exists for, and it stays an error.
+
+    Both of those read the graph as forward-only, which every edge is until a
+    stage consumes a **review of itself**. A design revised through a loop-back
+    records the review it addressed, so `api_design` (owned by `API_DESIGN`)
+    cites `design_review` (owned by `DESIGN_REVIEW`, a later stage) - a
+    **backward edge**. When that review revises, the design goes stale and the
+    forward reading grades it an error, because `API_DESIGN` sits before
+    `current_stage`.
+
+    That grade has no reachable remedy. `API_DESIGN` re-runs only through a
+    loop-back - `stage-map.yaml` routes five of them to it - and every loop-back
+    needs a `CHANGES_REQUIRED`
+    verdict - which would have re-run the design anyway and cleared the edge as
+    a side effect. So the only staleness that survives on a backward edge is the
+    kind produced by a `PASS`, and a `PASS` is precisely the review saying there
+    is nothing here to consume. Failing on it would demand either a fabricated
+    review verdict or a rebuttal written by a Skill that does not own the file -
+    both prohibited - which is the "no available repair" shape the paragraph
+    above already rejects.
+
+    A backward edge is therefore a warning, and stays visible. The forward
+    grading is untouched: an artifact genuinely built from a superseded upstream
+    and now feeding later stages is still an error, which is the whole point of
+    the check.
+
+    The rebuttal path is unchanged and still checked in full: `assessed_version`
+    must equal the upstream's current version and carry a non-empty
+    `assessment`, whatever stage owns the artifact.
     """
     if not story or story == "null":
         return
 
+    producer = {
+        key: stage for stage, body in stages.items() for key in body.get("outputs", [])
+    }
+    state_path = REPO / "docs" / "workflow" / "workflow-state.yaml"
+    current_stage = None
+    if state_path.is_file():
+        current_stage = read_scalars(state_path.read_text(encoding="utf-8")).get(
+            "current_stage"
+        )
+    current_index = stage_order.index(current_stage) if current_stage in stage_order else None
+
     known = story_artifact_files(story, artifacts)
-    for rel, (_key, front) in sorted(known.items()):
+    for rel, (key, front) in sorted(known.items()):
         for entry in front.get("inputs", []):
             upstream_rel = entry.get("path")
             if not upstream_rel or upstream_rel not in known:
@@ -721,12 +778,44 @@ def check_input_versions(story, artifacts) -> None:
                 continue
 
             if recorded != current:
-                error(
-                    f"{rel}: inputs[{upstream_rel}] records version {recorded}, but "
-                    f"{upstream_rel} is at version {current} - stale input. Re-run the "
-                    f"stage, or record assessed_version + assessment per "
-                    f"artifact-schema.md"
+                owning_stage = producer.get(key)
+                input_stage = producer.get(known[upstream_rel][0])
+                pending = (
+                    current_index is not None
+                    and owning_stage in stage_order
+                    and stage_order.index(owning_stage) >= current_index
                 )
+                backward = (
+                    owning_stage in stage_order
+                    and input_stage in stage_order
+                    and stage_order.index(input_stage) > stage_order.index(owning_stage)
+                )
+                if not pending and backward:
+                    warn(
+                        f"{rel}: inputs[{upstream_rel}] records version {recorded}, but "
+                        f"{upstream_rel} is at version {current} - stale input on a "
+                        f"backward edge. {upstream_rel} is owned by {input_stage}, which "
+                        f"comes after {owning_stage} in stage_order, so {owning_stage} "
+                        f"can only re-run through a loop-back from {input_stage} - and a "
+                        f"loop-back needs a CHANGES_REQUIRED verdict, which would have "
+                        f"re-run {owning_stage} anyway. A PASS leaves nothing here to "
+                        f"consume; the staleness is structural, not substantive"
+                    )
+                elif pending:
+                    warn(
+                        f"{rel}: inputs[{upstream_rel}] records version {recorded}, but "
+                        f"{upstream_rel} is at version {current} - stale input. "
+                        f"{owning_stage} has not re-run since, and the workflow is at "
+                        f"{current_stage}, so the re-run is still ahead; this becomes an "
+                        f"error if the workflow advances past {owning_stage} without it"
+                    )
+                else:
+                    error(
+                        f"{rel}: inputs[{upstream_rel}] records version {recorded}, but "
+                        f"{upstream_rel} is at version {current} - stale input. Re-run the "
+                        f"stage, or record assessed_version + assessment per "
+                        f"artifact-schema.md"
+                    )
 
 
 def check_history_integrity(story, stages) -> None:
@@ -928,7 +1017,7 @@ def main() -> int:
     check_history(story, stage_order)
     check_history_integrity(story, stages)
     check_artifact_timestamps(story, artifacts)
-    check_input_versions(story, artifacts)
+    check_input_versions(story, artifacts, stages, stage_order)
     check_unrecorded_artifacts(story, artifacts, stages)
 
     stage_skills = {s.get("skill") for s in stages.values() if s.get("skill")}

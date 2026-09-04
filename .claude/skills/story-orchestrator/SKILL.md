@@ -244,15 +244,82 @@ After a valid result, update `workflow-state.yaml` (per `state-schema.md`):
 - `last_invoked_skill`, `last_result` (verdict/stage/recorded_at),
   `last_artifacts` ([{type, path, version}]);
 - `pending_human_gate` per the Human Gates section;
-- `blocking_issues`, `non_blocking_findings`;
+- `blocking_issues`;
+- `non_blocking_findings` := **recomputed, not appended to** — replay
+  `history.jsonl` for this Story and keep every id whose latest event says
+  `RAISED`, in the structured shape `state-schema.md` defines. A finding the
+  Skill just closed leaves this list in the same write that records the closure;
+  never carry the previous list forward untouched;
 - `started_at` (first automated stage), `updated_at` (always),
   `completed_at` / `archived_at` when reaching those stages.
 
 Then append one line to `docs/workflow/history.jsonl`:
 
 ```json
-{"timestamp":"<runtime>","story":"US-001","from_stage":"<old>","to_stage":"<new>","skill":"<skill-or-null>","verdict":"<verdict>","artifacts":[],"attempt":<n>}
+{"timestamp":"<runtime>","story":"US-001","from_stage":"<old>","to_stage":"<new>","skill":"<skill-or-null>","verdict":"<verdict>","artifacts":[],"attempt":<n>,"findings":[]}
 ```
+
+`findings` carries the entries the Skill reported, validated before the append
+(`state-schema.md`, Finding lifecycle): an `id` shaped `<STAGE>:<local-id>`, a
+severity, a status, and a specific one-line summary. Reject an entry that is
+prose without an id, that closes an id never raised, or that raises an id
+already raised — and say which, rather than dropping it silently. The append is
+the record; the derived set above is only a view of it.
+
+## Progressing reviewed inputs to APPROVED
+
+`DRAFT → APPROVED` for an artifact that has already cleared its review gate is
+normally the work of `/so:approve`, which progresses the human gate's
+`required_artifacts` (see `.claude/commands/so/approve.md`). `DESIGN_REVIEW` is
+the one review stage in `stage-map.yaml` whose reviewed inputs have **no**
+following human gate — it routes straight to `IMPACT_ANALYSIS` — so without this
+step the design artifacts never reach `APPROVED` and the input invariant above
+(`status` is `APPROVED` for artifacts gated by a review) can never be satisfied
+from `IMPACT_ANALYSIS` onward.
+
+So: **on a `PASS` (or `NOT_APPLICABLE`) verdict out of `DESIGN_REVIEW`, in the
+same write that records the transition, progress the front-matter `status:` of
+`api_design`, `openapi`, `database_design` and `entity_model` from `DRAFT` to
+`APPROVED`** — skipping any whose owning stage (`API_DESIGN` / `DB_DESIGN`)
+recorded `NOT_APPLICABLE`, and skipping `openapi` for its `status:` (the OpenAPI
+YAML exception in `artifact-schema.md` gives it no such field; it is carried by
+the paired `api_design`). Do **not** increment `version` or `updated_at` — no
+content changed. This is the orchestrator-recorded status progression that
+`artifact-schema.md` permits ("A review stage may set an input's `status`
+progression only through the orchestrator-recorded result"), and the moment
+`artifact-lifecycle.md` §1 describes for an artifact with a review gate and no
+human gate. A `CHANGES_REQUIRED` verdict progresses nothing; the loop-back
+owner re-runs and re-emits `DRAFT`.
+
+## Migrating the free-text findings
+
+`non_blocking_findings` was free text before this schema and only ever grew.
+On the first transition after a Story's state still holds unstructured entries,
+convert them once: give each `id: LEGACY:<n>` numbered in the order they appear,
+`severity: MINOR`, `status: RAISED`, and the original prose as `summary`; record
+them in that transition's `findings`; then write the derived set in the new
+shape.
+
+The conversion is mechanical and deliberately so — **it does not decide whether
+any of them is still open.** Many are provably closed already, and reading a
+prose entry to judge that is a human call, not a migration. So the entries land
+as `RAISED`, and triaging them is a separate pass. Say in the run summary that
+`LEGACY:*` ids are unreviewed, so the count is not mistaken for a real open set.
+
+**Unless that pass already happened.** If `docs/decisions/{story_id}-findings-triage.md`
+exists with `status: APPROVED`, apply it instead of the mechanical default: file
+each finding it lists with the id, severity and status it gives, and drop every
+free-text entry it does not list. Do not re-judge it — it is a recorded human
+decision, and the mechanical path exists only for a Story that has not had one.
+Cite the document in the run summary so the resulting counts can be checked
+against it.
+
+Why the triage is a human pass and not a smarter conversion: on US-001 three of
+the forty-nine entries were misfiled in ways only execution revealed. One
+recorded an obligation in the present tense as though it were done, and would
+have been closed while the work was still outstanding; two described harness
+gaps that a later branch had already fixed, and would have stayed open. No
+reading of the prose distinguishes those cases from the rest.
 
 Preserve all prior history. Never rewrite `history.jsonl`.
 

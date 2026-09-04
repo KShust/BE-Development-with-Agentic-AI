@@ -175,7 +175,7 @@ database_schema:
     at that time. US-001 must not invent them, and must not apply the register
     number to routes it does not create.
   - Exceeding a limit returns `429` with the standard error body
-    (`api-conventions.md` AC-5).
+    (`api-conventions.md` AC-6).
 - **Access-token lifetime — decided** by a human on 2026-09-01:
   **15 minutes**, supplied as `JWT_ACCESS_TTL`.
   - An access token is **not revocable** — nothing withdraws it before it

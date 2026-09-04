@@ -131,10 +131,11 @@ second copy is how the two come to disagree.
   declares one abstract `DomainError` base and one subclass per failure
   *semantic*, not per feature: `ValidationError`, `UnauthorizedError`,
   `ForbiddenError`, `NotFoundError`, `ConflictError`, `UnsupportedMediaTypeError`,
-  `PayloadTooLargeError`. A new subclass requires a new failure semantic the table
-  below does not already cover — not a new message.
-- **The last two were added on 2026-09-02**, by a human decision at US-001's
-  specification gate, because this section contradicted itself: the mapping below
+  `PayloadTooLargeError`, `TooManyRequestsError`. A new subclass requires a new
+  failure semantic the table below does not already cover — not a new message.
+- **`UnsupportedMediaTypeError` and `PayloadTooLargeError` were added on
+  2026-09-02**, by a human decision at US-001's specification gate, because this
+  section contradicted itself: the mapping below
   named `415` while no subclass carried that semantic, and `413` appeared nowhere
   at all. Both statuses are produced outside the two categories the error
   middleware recognizes — the `415` by the boundary middleware's `Content-Type`
@@ -142,6 +143,21 @@ second copy is how the two come to disagree.
   error middleware that maps only `ZodError` and `DomainError` returns a generic
   `500` for each. Any Story with a request body meets this; it was not specific to
   registration.
+- **`TooManyRequestsError` was added on 2026-09-02**, by a human decision taken
+  on US-001's design review (finding `d-1`), and it is the same defect one step
+  further out: the mapping below carried no `429` and the taxonomy no "too many
+  requests" semantic, while `security-conventions.md` SC-3 requires the
+  authentication endpoints to be rate-limited and every approved contract
+  declares a `429` with the AC-6 body. The gap is not cosmetic —
+  `express-rate-limit`'s default handler sets the status, sends its own
+  plain-text payload, and never calls `next`, so a limiter left at its defaults
+  answers with a body no error middleware ever sees and no contract describes.
+  **The carrier is therefore a custom limiter handler that calls
+  `next(new TooManyRequestsError(...))`**, which is what routes the response back
+  through the one middleware AD-6 makes responsible for error bodies. A custom
+  handler is needed whatever the taxonomy says; naming the class is what keeps
+  the body constructed in a single place. Like the two above, this binds every
+  Story with a rate-limited endpoint, not only registration.
 - Every `DomainError` carries a stable `code` string, which is what reaches the
   client as `error.code` (`api-conventions.md` AC-6). The service supplies it at
   the throw site (`new ConflictError('EMAIL_ALREADY_REGISTERED')`), and its value
@@ -153,16 +169,17 @@ second copy is how the two come to disagree.
   error creates it with the base and the subclasses that Story actually throws;
   the rest are added when first needed. Until then, do not import from it. US-001
   is that Story: it creates the base plus `ConflictError`,
-  `UnsupportedMediaTypeError`, `PayloadTooLargeError` and `ValidationError` — the
-  four it actually throws — and leaves `UnauthorizedError`, `ForbiddenError` and
-  `NotFoundError` to the Stories that first throw them.
+  `UnsupportedMediaTypeError`, `PayloadTooLargeError`, `ValidationError` and
+  `TooManyRequestsError` — the five it actually throws — and leaves
+  `UnauthorizedError`, `ForbiddenError` and `NotFoundError` to the Stories that
+  first throw them.
 - The handler maps: Zod validation failure → `400`; domain "unauthenticated" →
   `401`; "forbidden" → `403`; "not found" → `404`; "conflict/duplicate" → `409`;
-  unsupported media type → `415`; payload too large → `413`; anything unmapped →
-  `500`. Each of those semantics has a class in the taxonomy above, and the
-  malformed-JSON `400` that `express.json()` raises is wrapped in a
-  `ValidationError` at the boundary rather than reaching the handler as a library
-  error.
+  unsupported media type → `415`; payload too large → `413`; too many requests →
+  `429`; anything unmapped → `500`. Each of those semantics has a class in the
+  taxonomy above, and the malformed-JSON `400` that `express.json()` raises is
+  wrapped in a `ValidationError` at the boundary rather than reaching the handler
+  as a library error.
 - Express 5 forwards rejected promises from async handlers to this middleware
   automatically; do not wrap handlers in try/catch to build error responses.
 - Every error response body uses the structure in `api-conventions.md` (AC-6).

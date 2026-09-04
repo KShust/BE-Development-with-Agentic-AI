@@ -95,6 +95,8 @@ Those supplement the table below; they never substitute for a row in it.
 | `npm run audit:check` | dependency advisories against the named exceptions in `.audit-allowlist.json` (network) |
 | `npm run validate:harness` | stage routing, artifact registry, Skill wiring, and workflow state agree |
 | `npm run validate:harness:test` | proves that validator still catches its known defects |
+| `npm run db:test:up` | starts the disposable PostgreSQL for integration tests (`docker compose`, host 5433). Not a check — the setup `npm run test:integration` needs (`persistence-conventions.md` PC-1) |
+| `npm run db:test:down` | stops and removes that database and its volume |
 
 Run them; do not describe them. A step that was not executed is not a passing
 step, and reporting an unrun check as green is prohibited (see Agent Behavior).
@@ -104,6 +106,29 @@ verified by reading, is `.claude/skills/pre-commit-checklist/SKILL.md`.
 `.claude/hooks/validate-full.py` enforces the code checks at the end of every
 turn that touched code, and `.github/workflows/ci.yml` runs the same set — so a
 locally green sequence is a green pipeline.
+
+### Changing a check is a human decision
+
+**`scripts/validate-harness.py`, `scripts/validate-harness.test.py` and
+`docs/workflow/artifact-schema.md` are changed only with explicit human
+approval, recorded the way `security-conventions.md` SC-6 records a new
+dependency: what changed, and why.** The correct response to a check that fails
+during a stage run is to **report it and stop** — never to edit the check in the
+turn it failed.
+
+This is not hypothetical, and the rule exists because the pressure is real and
+structural. The Stop hook fails a turn when `validate:harness` errors. The
+cheapest way to make that turn green is to edit the validator rather than the
+artifact, and on 2026-09-02 that happened twice in one session — the second time
+autonomously, with no human in the loop. Both edits turned out to be correct on
+review, which is exactly what makes the pattern dangerous: a mechanism built to
+watch for drift was generating pressure to edit the watcher, and it was luck
+rather than design that the edits were sound.
+
+A failing check is evidence about the work. Treat it as a finding, not as an
+obstacle between you and a green turn. If the check is genuinely wrong, say so,
+show the reasoning, and let a human decide — the same standard `AGENTS.md`
+already applies to a dependency, a convention, and a human gate.
 
 ---
 
@@ -245,6 +270,29 @@ reasoning and the detail.
   database; time and randomness controlled.
 - Every Acceptance Criterion is covered by at least one test; a regression test
   accompanies every bug fix; never weaken or skip a test to get a pass.
+- **`test-writer` may create a signature-only production stub — decided by a
+  human on 2026-09-03, after `TEST_WRITING:B-1`.** `stage-map.yaml` runs
+  `TEST_WRITING` before `IMPLEMENTATION`, so a test authored against a module
+  that does not exist yet fails `npm run typecheck` outright (`Cannot find
+  module` / `has no exported member`) — and that same failed resolution types
+  the import as `any`, which then fails `npm run lint`'s `no-unsafe-*` family
+  too. Both failures are one root cause, not two: the module and its export
+  must exist, even before any real behavior does. A stub is not "implementing
+  production code" in the sense `test-writer`'s Constraints forbid — nothing it
+  does satisfies a test or fixes a failure; it exists only so the file
+  compiles. It is narrow, and every one of these holds:
+  - the file did not previously exist, or was still the unmodified one-line
+    placeholder — never a file that already carries real behavior;
+  - the exact signature comes from the approved design or the Implementation
+    Plan, never `any` or `unknown` standing in for a real type;
+  - the body only throws or returns a rejected `Promise` — no conditional
+    logic, no partial behavior, nothing a test could pass against;
+  - it is not declared `async` unless it awaits something, or ESLint's
+    `require-await` fires on the stub itself;
+  - it carries no comment claiming the behavior is implemented.
+
+  `IMPLEMENTATION` replaces a stub's body, never its signature, unless an
+  approved design changed since the stub was written.
 
 **Git** — see also Definition of Done
 
@@ -327,7 +375,10 @@ Do not start implementation until all of these hold; otherwise stop and ask.
   `docs/`), and `AGENTS.md` when a convention itself changed.
 - No secrets or sensitive data in code or logs; no debug code; no unrelated
   changes.
-- Conventional Commit format used.
+- Conventional Commit format used, and a commit that records a workflow stage
+  names that stage first in the subject — the stage that *ran*, not the one that
+  prompted it. Full rule and the not-a-stage cases:
+  `.claude/skills/pre-commit-checklist/SKILL.md` step 14.
 
 ---
 
@@ -341,6 +392,9 @@ Do not start implementation until all of these hold; otherwise stop and ask.
 - Reading `process.env` outside `src/config/env.ts`; `console.log` in `src/`.
 - Suppressing TypeScript errors (`any`, `@ts-ignore`, `!`, forcing `as`).
 - Weakening, skipping, or deleting tests.
+- Editing `scripts/validate-harness.py`, `scripts/validate-harness.test.py` or
+  `docs/workflow/artifact-schema.md` without explicit human approval, and in
+  particular editing any of them in the turn where a check they drive failed.
 - Modifying an applied migration; `prisma db push` against a shared database.
 - Introducing an unversioned breaking API change.
 - Implementing speculative features or unrelated refactors.
@@ -357,6 +411,23 @@ The prohibitions that can be expressed as a tool rule are enforced by
 or writing `.env`, and editing an applied migration. A denied rule cannot be
 waived in-session; changing one is a commit and a review. The rest of this list
 has no mechanical barrier and depends on you reading it.
+
+**`git rebase` is the one deliberate exception, decided by a human on
+2026-09-03.** The Git rule above is "never rewrite *shared* history", and
+unpushed commits on a feature branch are not shared — so denying `rebase`
+outright was stricter than the rule it enforced. It now sits in
+`permissions.ask`, to reorganize commits before a push **on request, never
+unprompted**. Everything else that rewrites or destroys history stays denied:
+`reset --hard`, `clean`, `restore`, `filter-branch`, `commit --amend`,
+`reflog delete`, `update-ref -d`, and `push` itself.
+
+One consequence is operational, and it binds. Nearly every workflow commit
+appends a line to `docs/workflow/history.jsonl`, which is append-only. Squashing
+such commits is safe — the final file is byte-identical. Reordering or dropping
+them is not. **After any rebase that touches those commits, verify the final
+`history.jsonl` against its pre-rebase content: the set of events and their
+order must be unchanged.** A rebase that silently drops an event breaks the
+record `attempt` and the derived finding set are computed from.
 
 Routine read-only and validation commands are pre-approved in the same file, so
 that a long implementation run does not train its reviewer to approve without

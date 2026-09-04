@@ -61,7 +61,8 @@ last_result:                           # last stage result envelope summary, or 
 last_artifacts: []                     # list of {type, path, version} produced by last stage
 pending_human_gate: null               # see below; null unless current_stage is a human_gate
 blocking_issues: []                    # list of strings; non-empty only when status == BLOCKED
-non_blocking_findings: []              # carried-forward advisory findings
+non_blocking_findings: []              # the OPEN findings, derived from history.jsonl
+                                       # (see Finding lifecycle) - never a free-text log
 started_at: null                       # ISO-8601 when first automated stage ran
 updated_at: null                       # ISO-8601 of last orchestrator write
 completed_at: null                     # ISO-8601 when stage COMPLETED was reached
@@ -155,7 +156,11 @@ One JSON object per line, append-only. Owned by `story-orchestrator`
   "skill": "spec-writer",
   "verdict": "PASS",
   "artifacts": ["docs/specifications/US-001-spec.md"],
-  "attempt": 1
+  "attempt": 1,
+  "findings": [
+    {"id": "SPEC_REVIEW:m-1", "severity": "MINOR", "status": "RAISED",
+     "summary": "FR-22 names no owner for translating express.json errors"}
+  ]
 }
 ```
 
@@ -169,3 +174,58 @@ the transition. Reading a series of events for one `to_stage` therefore gives
 lifecycle-event markers: `ACTIVATED` (Story activation, `from_stage: BACKLOG_SYNC`
 or `null`), `HUMAN_APPROVED` / `HUMAN_REJECTED` (a human gate, `skill: null`),
 `ARCHIVED` (archive mode).
+
+---
+
+## Finding lifecycle
+
+A finding is anything a run surfaced that a later run may need to act on: a
+review's numbered finding, a risk an analysis raised, a defect recorded but not
+repaired. `findings` is optional on a history event and empty for a run that
+surfaced and closed nothing.
+
+```json
+{"id": "DESIGN_REVIEW:d-1", "severity": "MAJOR", "status": "RESOLVED",
+ "summary": "429 has a carrier: AD-6 TooManyRequestsError via the limiter handler"}
+```
+
+| Field | Rule |
+|---|---|
+| `id` | `<STAGE>:<local-id>`, where `<STAGE>` is the canonical id of the stage that first raised it and `<local-id>` is the label its artifact uses (`d-1`, `R-4`, `m-2`). Unique for the Story and **stable for life** — a later event referring to the same finding repeats the id exactly. |
+| `severity` | `CRITICAL` \| `MAJOR` \| `MINOR`. Fixed when raised; a re-assessment is a new finding citing the old id in its summary, never an edit. |
+| `status` | `RAISED` \| `RESOLVED` \| `ACCEPTED` \| `SUPERSEDED`. |
+| `summary` | One line, and specific. It says what the finding *is* when raised, and what closed it when closed. "Fixed" is not a summary. |
+
+`status` values:
+
+- **`RAISED`** — the run found it. Only the first event for an id may use this.
+- **`RESOLVED`** — a later run fixed the thing. The summary names what fixed it.
+- **`ACCEPTED`** — deliberately not fixed; the summary names who decided and why.
+  `SPEC_REVIEW:m-2` and `SPEC_REVIEW:m-3` are this: real defects in an artifact
+  past its human gate, with no proportionate route back to it.
+- **`SUPERSEDED`** — the artifact carrying it was replaced and the finding no
+  longer describes anything. Not a synonym for `RESOLVED`: nothing was fixed.
+
+**The open set is derived, never authored.** A finding is open when the latest
+event carrying its id says `RAISED`. `workflow-state.yaml`'s
+`non_blocking_findings` holds exactly that set, recomputed by the orchestrator on
+every transition, in the same structured shape. It shrinks when findings close.
+
+This is the `attempt` construction applied to findings: `history.jsonl` is the
+record and the state file is a derived counter, so the two must agree and the
+log wins. The reason it matters more here is that `non_blocking_findings` used
+to be free text that only ever grew — 1 entry, then 9, 18, 23, 28, 32, 43, 49
+across US-001's first seven state commits, with nothing ever removed, because no
+rule said anything could be. Findings closed two stages earlier were still being
+read by every stage as current. A list that only accumulates stops being a
+finding list and becomes a tax on the context of every Skill that loads it.
+
+**Ordering rules.** An id may not be `RESOLVED`, `ACCEPTED` or `SUPERSEDED`
+before it is `RAISED`. Two `RAISED` events for one id is a defect: the second
+finding needed its own id. Closing an id twice is not an error — the log is
+append-only and a re-close is a no-op — but the second summary must not
+contradict the first.
+
+**Who writes it.** Only `story-orchestrator`, from the Skill's result envelope,
+at the moment it records the transition. A Skill reports findings; it never
+edits the log or the derived set.

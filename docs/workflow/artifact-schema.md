@@ -41,6 +41,65 @@ supersedes: null                            # or the relative path of the prior 
 - If X is later revised to `version: N+1` (old becomes `SUPERSEDED`), any downstream artifact still recording `version: N` is **presumed stale**.
 - A **stale** review or evidence artifact **blocks progression** (`verdict: BLOCKED`) until the dependent stage re-runs against the current version.
 
+### When the re-run is still ahead
+
+A loop-back revises an upstream artifact, and every downstream artifact that
+consumed it goes stale in the same instant. That is not a defect to repair — it
+is what a loop-back *is*, and the workflow is already on its way back to those
+stages. Neither remedy is reachable from inside the turn that creates the
+staleness: `story-orchestrator` runs at most one stage per invocation, and no
+Skill may write an artifact another Skill owns.
+
+So the presumption's severity depends on where the stale artifact's owning stage
+sits relative to `current_stage` in `stage_order`:
+
+- **At or after `current_stage`** — the workflow reaches that stage before
+  anything consumes its output again. The staleness is pending, not unnoticed.
+  `scripts/validate-harness.py` reports it as a **warning**, which stays visible
+  on every run until the re-run or a rebuttal clears it.
+- **Before `current_stage`** — the workflow has moved past the stage that should
+  have re-run, and a stale artifact is now feeding later stages. That is the case
+  this contract exists for, and it is an **error**.
+
+The distinction is about *timing*, never about *substance*: a pending artifact is
+as stale as any other, and the stage that owns it still owes the re-run or the
+rebuttal below. What the distinction avoids is failing every loop-back at the
+moment it succeeds, with no repair available to the turn being failed — the same
+reasoning that makes `history.jsonl` integrity a warning rather than an error.
+
+### When the edge runs backwards
+
+Both readings above assume every edge points forward: an artifact consumes
+something an earlier stage produced. That holds until a stage consumes a
+**review of itself**. A design revised through a loop-back records the review it
+addressed, so `api_design` (owned by `API_DESIGN`) cites `design_review` (owned
+by `DESIGN_REVIEW`, a *later* stage). When that review revises, the design goes
+stale, and the forward reading grades it an error because `API_DESIGN` sits
+before `current_stage`.
+
+That grade has no reachable remedy, which is what separates it from every other
+error this contract raises:
+
+- **Re-running the design** happens only through another loop-back. Five
+  stages route one to `API_DESIGN` — `DESIGN_REVIEW`, `IMPACT_ANALYSIS`,
+  `TEST_WRITING`, `IMPLEMENTATION` and `RECONCILIATION` — and every one of them
+  requires a `CHANGES_REQUIRED` verdict — which
+  would have re-run the design anyway and cleared the edge as a side effect. So
+  the only backward-edge staleness that survives is the kind a `PASS` produces,
+  and a `PASS` is precisely the review saying there is nothing here to consume.
+- **The rebuttal below** may be recorded only by the Skill that owns the
+  downstream artifact, during a run of its own stage — which is the same
+  unreachable re-run.
+
+Clearing it would therefore take a fabricated review verdict or a rebuttal
+written by a Skill that does not own the file. Both are prohibited, so the error
+would stand permanently with falsifying the record as its only exit.
+
+**A stale input whose upstream is owned by a stage that comes after the consuming
+artifact's own stage is a warning.** It stays visible on every run. The forward
+grading is untouched: an artifact genuinely built from a superseded upstream and
+now feeding later stages is still an error.
+
 ### Rebutting the presumption
 
 The presumption exists because a version mismatch usually means the downstream

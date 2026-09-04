@@ -11,6 +11,16 @@ coverage/
 # Machine-local hook/permission overrides. The shared config is .claude/settings.json.
 .claude/settings.local.json
 
+# Generated ports of the .claude/ harness for other agent runners. An external
+# tool writes these from .claude/; nothing in this repository produces them and
+# no check reads them. They are ignored rather than committed because a second
+# copy of the Skills and hooks drifts from the first and nothing catches it --
+# the failure mode CLAUDE.md names in its own closing lines. .claude/ is the
+# only harness this repository defines. Delete these when they appear; the
+# entries below keep them out of a commit if the tool writes them again.
+.codex/
+.agents/
+
 # Build/tooling caches
 *.tsbuildinfo
 __pycache__/

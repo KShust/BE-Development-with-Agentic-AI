@@ -1,2 +1,35 @@
-// Prisma schema placeholder.
-// datasource + generator + models (User, ...) to be added when the auth/users modules are implemented.
+// Prisma schema — the source of truth for the data model (persistence-conventions.md PC-2).
+//
+// Prisma 7 no longer accepts `url` in the datasource block (P1012): the client
+// connection is supplied by the @prisma/adapter-pg driver adapter in
+// src/lib/prisma.ts, and the migration connection by prisma.config.ts (PC-1).
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/// The account's permission group. CUSTOMER is the default and only role
+/// currently defined (security-conventions.md SC-2). Adding another is
+/// `ALTER TYPE ... ADD VALUE`, owned by the Story that introduces it.
+enum Role {
+  CUSTOMER
+}
+
+/// One row per registered Customer — the Customer, their Account and their
+/// Profile are three views of it (business-glossary.md). US-001 persists no
+/// account-state column and no profile column; each is deferred with its reason
+/// in docs/designs/database/US-001-entity-model.md.
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(254)
+  passwordHash String   @map("password_hash")
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("user")
+}
