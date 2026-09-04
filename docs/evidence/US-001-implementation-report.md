@@ -1,11 +1,12 @@
 ---
 artifact_type: implementation_report
 story: US-001
-version: 3
+version: 4
 status: DRAFT
 created_at: 2026-09-03T19:50:48Z
-updated_at: 2026-09-03T21:55:00Z
+updated_at: 2026-09-03T23:18:00Z
 produced_by: express-implementor
+attempt: 4
 inputs:
   - path: docs/stories/US-001-register-customer.md
     version: null
@@ -34,11 +35,11 @@ inputs:
   - path: docs/decisions/US-001-findings-triage.md
     version: 2
   - path: docs/tests/US-001-test-strategy.md
-    version: 3
+    version: 4
   - path: docs/tests/US-001-ac-test-matrix.md
-    version: 3
-supersedes: docs/evidence/US-001-implementation-report.md@2
-tests_status: NOT_RUN
+    version: 4
+supersedes: docs/evidence/US-001-implementation-report.md@3
+tests_status: PASS
 build_status: PASS
 diagnostics_status: PASS
 security_sensitive: true
@@ -62,49 +63,58 @@ the five-class domain-error taxonomy, the Pino logger with redaction, the eleven
 CI `services: postgres`).
 
 **Implementation status.** Code-complete and **unchanged since attempt 1** — this
-attempt-3 re-entry added, modified, and removed **no** production or test file.
-It re-entered after the `TEST_WRITING` loop-back (`changes_required_tests`)
-returned `PASS`, to consume the corrected test and re-confirm the
-database-independent Definition-of-Done checks. `TEST_WRITING:B-2` remains
-discharged: `npm run typecheck` and `npm run lint` both reach **0 errors** with
-`prisma/schema.prisma` present and the client generated.
+attempt-4 re-entry added, modified, and removed **no** production or test file.
+The committed implementation change set (`1d1a05a`) stands as authored. This
+attempt re-entered after the human-directed roll-back to `TEST_WRITING` for
+`IMPLEMENTATION_VERIFICATION:V-1` (history `2026-09-03T22:54:40Z`,
+`human:KShust`), which `TEST_WRITING` attempt 4 resolved (verdict `PASS`,
+`2026-09-03T23:08:52Z`). Its job here is to consume the corrected `TEST_WRITING`
+v4 artifacts and re-run the full Definition-of-Done sequence — this time on a
+**Postgres-capable environment**, so the story-level integration suite executes
+for the first time inside `IMPLEMENTATION`.
 
-**What changed since v2 — `IMPLEMENTATION:T-1` is RESOLVED.** The one actionable
-item that made attempt 2 return `CHANGES_REQUIRED` was an unsatisfiable
-integration test. `TEST_WRITING` attempt 3 corrected it: the case in
-`tests/integration/auth-register-password-validation.test.ts` was re-pointed from
-an expected `201` to assert the **`400`** that a literal SC-1 implementation
-produces, with a 14-code-point fixture (`中文密码短语加密内容1234` — 10 Han in the
-single "anything else" class + 4 digits = 2 of the 4 classes). The renamed case,
-*"rejects a caseless-script password that can reach only 2 of the 4 classes
-(SC-1 known limitation, EC-6)"*, now matches `src/modules/auth/auth.schemas.ts`
-`characterClassCount(value) >= 3` exactly. No assertion was weakened — the
-correction made the case stricter. `docs/tests/US-001-test-strategy.md`,
-`docs/tests/US-001-ac-test-matrix.md` and
-`docs/evidence/US-001-test-generation-report.md` are realigned to v3, and this
-report's `inputs` record test-strategy v3 and ac-test-matrix v3.
+**What changed since v3 — `IMPLEMENTATION_VERIFICATION:V-1` is RESOLVED upstream,
+and the integration suite now runs green.** v3 returned `PASS` but could not
+execute the 40-plus acceptance-criteria integration tests (no Docker / no
+PostgreSQL in that environment) and carried that as
+`IMPLEMENTATION_PLANNING:R-P1`. Then `IMPLEMENTATION_VERIFICATION` attempt 1
+returned `BLOCKED` on `V-1`: `tests/integration/auth-register-audit.test.ts`
+(EC-4) stubbed `logger.info` on the shared `src/lib/logger.ts` singleton to
+throw unconditionally, and pino-http — bound to that same singleton in
+`src/app.ts` — then threw from a `res` `'finish'` handler after the test's
+`await` resolved, outside any `try/catch`, so `npm run test` exited non-zero even
+though every assertion passed. The defect was in the authored test, which
+`express-implementor` may not edit, so a human routed the Story back to
+`TEST_WRITING`. `TEST_WRITING` attempt 4 scoped the stub: it now throws **only**
+for the `{ event: 'user.registered', ... }` payload and is a no-op for every
+other `.info` call. Both EC-4 assertions are unchanged (request still `201`;
+failure still logged via `logger.error`); no production file was touched and no
+assertion was weakened. `test-strategy`, `ac-test-matrix` and
+`test-generation-report` were realigned `v3 → v4`; this report records
+test-strategy v4 and ac-test-matrix v4.
 
-**Validation status.** Every Definition-of-Done check that does not require a
-live database was **re-run for attempt 3** and passes with recorded evidence
-(§5): `format:check`, `lint`, `typecheck`, `openapi:check`, `check:cycles`,
-`build`, `audit:check`, `validate:harness`, and the `unit` + `harness` Vitest
-projects (**33 / 33** tests pass). The **40 acceptance-criteria integration
-tests were NOT executed** — this environment has no Docker and no PostgreSQL
-(verified again this attempt: `docker` not on `PATH`, no `C:\Program Files\
-Docker`, no WSL; `DATABASE_URL` unset), so `npm run test` fails at the
-`integration` project's `globalSetup`, which correctly emits the PC-1 command to
-run. This is `IMPLEMENTATION_PLANNING:R-P1` materializing in an environment the
-plan assumed would have a disposable Postgres — it is **carried as a
-non-blocking finding, not masked as a pass and not a reason to hold at
-`BLOCKED`**, with its first execution owed to CI / `IMPLEMENTATION_VERIFICATION`
-on a Postgres-capable environment.
+**Validation status — full green sequence, executed this attempt against a live
+PC-1 database.** `npm run db:test:up` brought up `postgres:17-alpine` on host
+5433; `npx prisma migrate deploy` applied `20260903192254_init_user` cleanly to
+the empty database; `npx prisma migrate status` reports "up to date". Every
+Definition-of-Done check then ran and passed with recorded evidence (§5):
+`format:check`, `lint`, `typecheck`, `openapi:check`, `check:cycles`, `build`,
+`audit:check`, `validate:harness`, and **`npm run test` → 13 files / 73 tests
+passed, exit 0** — the unit, harness and the full story-level integration suite
+together. The corrected `auth-register-audit.test.ts` runs green in isolation
+(2 / 2, exit 0) and in the full run.
 
 **Verdict — this report returns `PASS` → `IMPLEMENTATION_VERIFICATION`.** The
-plan is fully implemented; every database-independent check passes with recorded
-evidence; the change set is scoped and unchanged; no Open Decision was resolved
-in code and no requirement was invented. The sole prior blocker
-(`IMPLEMENTATION:T-1`) is resolved upstream. The carried findings below are all
-owed to a later stage that has the evidence this environment cannot produce.
+plan is fully implemented; the change set is scoped and unchanged since
+attempt 1; every Definition-of-Done check passes with recorded evidence,
+including the story-level integration suite that no prior `IMPLEMENTATION`
+attempt could execute. No Open Decision was resolved in code and no requirement
+was invented. `IMPLEMENTATION_VERIFICATION:V-1` is resolved upstream. The
+integration and contract evidence that `IMPACT_ANALYSIS:R-4`,
+`DESIGN_REVIEW:e-2`, `DESIGN_REVIEW:d-4` and `IMPLEMENTATION_PLANNING:R-P1` were
+each waiting on now exists and is recorded in §5; formal closure of those four
+belongs to the independent `IMPLEMENTATION_VERIFICATION` run that gathers its
+own evidence, and they are carried forward here rather than self-closed.
 
 ## 2. Source Artifacts
 
@@ -113,52 +123,56 @@ owed to a later stage that has the evidence this environment cannot produce.
 | User Story | `docs/stories/US-001-register-customer.md` | — (active) |
 | Specification | `docs/specifications/US-001-spec.md` | 14 (`APPROVED`, past `HUMAN_SPEC_APPROVAL`) |
 | Specification review | `docs/reviews/specifications/US-001-spec-review.md` | 11 (`PASS`) |
-| API design | `docs/designs/api/US-001-api-design.md` | 2 |
+| API design | `docs/designs/api/US-001-api-design.md` | 2 (`APPROVED`) |
 | OpenAPI contract | `docs/designs/api/US-001-openapi.yaml` | 2 |
-| Database design | `docs/designs/database/US-001-db-design.md` | 2 |
-| Entity model | `docs/designs/database/US-001-entity-model.md` | 1 |
+| Database design | `docs/designs/database/US-001-db-design.md` | 2 (`APPROVED`) |
+| Entity model | `docs/designs/database/US-001-entity-model.md` | 1 (`APPROVED`) |
 | Design review | `docs/reviews/designs/US-001-design-review.md` | 2 (`PASS`) |
 | Impact analysis | `docs/impact-analysis/US-001-impact-analysis.md` | 2 (`PASS`) |
 | Implementation plan | `docs/plans/US-001-implementation-plan.md` | 4 (`APPROVED`, past `HUMAN_PLAN_APPROVAL`) |
 | Plan review | `docs/reviews/plans/US-001-plan-review.md` | 4 (`PASS`) |
 | Findings triage | `docs/decisions/US-001-findings-triage.md` | 2 (`APPROVED`) |
 | Open decisions | `docs/decisions/US-001-open-decisions.md` | 7 (12/12 `RESOLVED`) |
-| Test strategy | `docs/tests/US-001-test-strategy.md` | 3 |
-| AC test matrix | `docs/tests/US-001-ac-test-matrix.md` | 3 |
-| Test generation report | `docs/evidence/US-001-test-generation-report.md` | 3 |
+| Test strategy | `docs/tests/US-001-test-strategy.md` | 4 |
+| AC test matrix | `docs/tests/US-001-ac-test-matrix.md` | 4 |
+| Test generation report | `docs/evidence/US-001-test-generation-report.md` | 4 |
 
-No input is `SUPERSEDED`. The v2→v3 input change is test-strategy and
-ac-test-matrix moving 2 → 3 (the `TEST_WRITING` T-1 correction).
+No input is `SUPERSEDED`. The v3 → v4 input change is test-strategy and
+ac-test-matrix moving `3 → 4` (the `TEST_WRITING` attempt-4 V-1 correction).
 
 ## 3. Implemented Acceptance Criteria
 
+Every row's integration test now **executed** (13 files / 73 tests, exit 0 — §5).
+
 | AC | Implementation (file · symbol) | Test (file · name) | Status |
 |---|---|---|---|
-| **AC-001** Successful registration | `src/modules/auth/auth.service.ts` · `createAuthService().register`; `src/modules/users/users.service.ts` · `createUsersService().createCustomer`; `src/modules/users/users.repository.ts` · `usersRepository.create`; `src/modules/auth/auth.controller.ts` · `register` (201 + 4-field DTO) | `tests/integration/auth-register-success.test.ts` · "creates an account and returns 201 with exactly the four contract fields"; `src/modules/auth/auth.service.test.ts` · "hashes the password and creates the account on the happy path (AC-001, FR-10)"; `src/modules/users/users.service.test.ts` · "creates exactly one account for a new email (FR-2)" | unit ✅ · integration ⏸ not run (no DB) |
-| **AC-002** Unique email | `src/modules/users/users.service.ts` · pre-check + `isUniqueViolation` P2002 translation inside `repository.transaction`; `src/lib/errors.ts` · `ConflictError` | `tests/integration/auth-register-duplicate.test.ts` · "rejects a duplicate email with 409 EMAIL_ALREADY_REGISTERED…"; `src/modules/users/users.service.test.ts` · "raises ConflictError(EMAIL_ALREADY_REGISTERED) when the email already exists…" and "translates a database-level unique violation (P2002)…" | unit ✅ · integration ⏸ not run |
-| **AC-003** Email validation | `src/modules/auth/auth.schemas.ts` · `emailField` (`z.string().transform(trim+lowercase).pipe(z.email().max(254))`); `src/middleware/validateRequest.ts`; `src/middleware/errorHandler.ts` · `toFieldErrors` | `tests/integration/auth-register-email-validation.test.ts` · all rows | integration ⏸ not run |
-| **AC-004** Password validation | `src/modules/auth/auth.schemas.ts` · `passwordField` (`characterClassCount` ≥ 3, `codePointLength` 12–128) — SC-1 implemented literally | `tests/integration/auth-register-password-validation.test.ts` · rows (incl. the re-pointed "rejects a caseless-script password that can reach only 2 of the 4 classes (SC-1 known limitation, EC-6)"); `src/middleware/errorHandler.test.ts` · ZodError rows | unit ✅ · integration ⏸ not run · **T-1 resolved, §7.2** |
-| **AC-005** Password storage | `src/lib/password.ts` · `hashPassword` (Argon2id, `ARGON2ID_PARAMETERS` from `src/config/env.ts`); `src/modules/users/users.repository.ts` · `CUSTOMER_SELECT` never includes `password_hash` | `src/lib/password.test.ts` · all 4; `tests/integration/auth-register-success.test.ts` · "stores the password only as an Argon2id hash…" | unit ✅ · integration ⏸ not run |
-| **AC-006** Secure response | `src/modules/auth/auth.schemas.ts` · `registerResponseSchema` (`strictObject`, 4 fields); `src/modules/auth/auth.controller.ts` maps record→DTO | `tests/integration/auth-register-success.test.ts` · "never returns the password or password hash…"; `src/modules/users/users.service.test.ts` · "selects only id, email, role and createdAt…" | unit ✅ · integration ⏸ not run |
-| **AC-007** Audit logging | `src/modules/auth/auth.service.ts` · `deps.auditLog({ event, userId, requestId })` after create, best-effort; wired singleton uses `logger.info`; `src/lib/logger.ts` · redaction | `tests/integration/auth-register-audit.test.ts` · both; `src/modules/auth/auth.service.test.ts` · "emits a user.registered audit event…", "does not include the email…", "logs a failed audit write as an error…" | unit ✅ · integration ⏸ not run |
+| **AC-001** Successful registration | `src/modules/auth/auth.service.ts` · `createAuthService().register`; `src/modules/users/users.service.ts` · `createUsersService().createCustomer`; `src/modules/users/users.repository.ts` · `usersRepository.create`; `src/modules/auth/auth.controller.ts` · `register` (201 + 4-field DTO) | `tests/integration/auth-register-success.test.ts` · "creates an account and returns 201 with exactly the four contract fields"; `src/modules/auth/auth.service.test.ts` · "hashes the password and creates the account on the happy path (AC-001, FR-10)"; `src/modules/users/users.service.test.ts` · "creates exactly one account for a new email (FR-2)" | unit ✅ · integration ✅ |
+| **AC-002** Unique email | `src/modules/users/users.service.ts` · pre-check + `isUniqueViolation` P2002 translation inside `repository.transaction`; `src/lib/errors.ts` · `ConflictError` | `tests/integration/auth-register-duplicate.test.ts` · "rejects a duplicate email with 409 EMAIL_ALREADY_REGISTERED…"; `src/modules/users/users.service.test.ts` · "raises ConflictError(EMAIL_ALREADY_REGISTERED) when the email already exists…" and "translates a database-level unique violation (P2002)…" | unit ✅ · integration ✅ |
+| **AC-003** Email validation | `src/modules/auth/auth.schemas.ts` · `emailField` (`z.string().transform(trim+lowercase).pipe(z.email().max(254))`); `src/middleware/validateRequest.ts`; `src/middleware/errorHandler.ts` · `toFieldErrors` | `tests/integration/auth-register-email-validation.test.ts` · all rows | unit ✅ · integration ✅ |
+| **AC-004** Password validation | `src/modules/auth/auth.schemas.ts` · `passwordField` (`characterClassCount` ≥ 3, `codePointLength` 12–128) — SC-1 implemented literally | `tests/integration/auth-register-password-validation.test.ts` · rows (incl. "rejects a caseless-script password that can reach only 2 of the 4 classes (SC-1 known limitation, EC-6)"); `src/middleware/errorHandler.test.ts` · ZodError rows | unit ✅ · integration ✅ |
+| **AC-005** Password storage | `src/lib/password.ts` · `hashPassword` (Argon2id, `ARGON2ID_PARAMETERS` from `src/config/env.ts`); `src/modules/users/users.repository.ts` · `CUSTOMER_SELECT` never includes `password_hash` | `src/lib/password.test.ts` · all 4; `tests/integration/auth-register-success.test.ts` · "stores the password only as an Argon2id hash…" | unit ✅ · integration ✅ |
+| **AC-006** Secure response | `src/modules/auth/auth.schemas.ts` · `registerResponseSchema` (`strictObject`, 4 fields); `src/modules/auth/auth.controller.ts` maps record→DTO | `tests/integration/auth-register-success.test.ts` · "never returns the password or password hash…"; `src/modules/users/users.service.test.ts` · "selects only id, email, role and createdAt…" | unit ✅ · integration ✅ |
+| **AC-007** Audit logging | `src/modules/auth/auth.service.ts` · `deps.auditLog({ event, userId, requestId })` after create, best-effort; wired singleton uses `logger.info`; `src/lib/logger.ts` · redaction | `tests/integration/auth-register-audit.test.ts` · both (incl. the V-1-corrected EC-4 case); `src/modules/auth/auth.service.test.ts` · "emits a user.registered audit event…", "does not include the email…", "logs a failed audit write as an error…" | unit ✅ · integration ✅ · **V-1 resolved, §7.2** |
 
 Cross-cutting (`IMPACT_ANALYSIS:R-4`, `DESIGN_REVIEW:e-2`): the two Zod
 `fieldErrors` mappings (`unrecognized_keys` keyed by the offending property;
 root-level `invalid_type` keyed onto both required fields) and the never-empty
-guarantee are implemented in `src/middleware/errorHandler.ts` · `toFieldErrors`
-and covered by `src/middleware/errorHandler.test.ts` (**unit ✅**). The three
-converging request shapes and the 415/413/MALFORMED_JSON split are covered by
-`tests/integration/auth-register-envelope.test.ts` (⏸ not run) and, at the unit
-level, `src/middleware/validateRequest.test.ts` (**✅**).
+guarantee are implemented in `src/middleware/errorHandler.ts` · `toFieldErrors`,
+covered by `src/middleware/errorHandler.test.ts` (unit ✅) and now also at the
+integration level by `tests/integration/auth-register-envelope.test.ts`
+(**executed ✅**). The three converging request shapes and the
+415/413/`MALFORMED_JSON` split are covered by the same integration file and, at
+the unit level, `src/middleware/validateRequest.test.ts` (✅).
 
 ## 4. Change Set
 
-**Unchanged from attempt 1.** This attempt-3 re-entry re-ran the checks and
-re-evaluated the verdict after the `TEST_WRITING` T-1 correction landed
-upstream; it added, removed, and modified **no** file. The change set below is
-the attempt-1 set, reproduced for the record. (The `docs/tests/*` and
-`docs/evidence/US-001-test-generation-report.md` v3 edits are `test-writer`'s,
-not this stage's.)
+**Unchanged from attempt 1.** This attempt-4 re-entry re-ran the checks and
+re-evaluated the verdict after the `TEST_WRITING` V-1 correction landed upstream;
+it added, removed, and modified **no** file. `git diff --stat -- 'src/**'` is
+empty. The change set below is the attempt-1 set (committed as `1d1a05a`),
+reproduced for the record. The `tests/integration/auth-register-audit.test.ts`,
+`docs/tests/*` and `docs/evidence/US-001-test-generation-report.md` v4 edits in
+the working tree are `test-writer`'s, not this stage's.
 
 ### Created — `Planned`
 
@@ -177,7 +191,7 @@ not this stage's.)
 
 | Path | Why |
 |---|---|
-| `src/lib/shutdown.ts` | `module-map.md` says `src/server.ts` owns graceful shutdown "including the Prisma disconnect" and may import `src/lib`, but `eslint.config.js`'s PRISMA rule makes `src/lib/prisma.ts` the only file allowed to name the client, with no carve-out for `server.ts`. This one-line re-export bridges the two without editing the check (which the human forbade). The file flags itself for review; the clean fix is an `eslint.config.js` carve-out. See §7.3. |
+| `src/lib/shutdown.ts` | `module-map.md` says `src/server.ts` owns graceful shutdown "including the Prisma disconnect" and may import `src/lib`, but `eslint.config.js`'s PRISMA rule makes `src/lib/prisma.ts` the only file allowed to name the client, with no carve-out for `server.ts`. This one-line re-export bridges the two without editing the check (which the human forbade). The file flags itself for review; the clean fix is an `eslint.config.js` carve-out. See §7.3 (`IMPLEMENTATION:E-1`). |
 
 ### Modified — `Planned` (each `src/` file was a one-line placeholder)
 
@@ -213,22 +227,34 @@ not this stage's.)
 
 ### Pre-existing uncommitted work in the tree
 
-The working tree carries `TEST_WRITING`'s uncommitted output (the test suite,
-`tests/support/api.ts`, `docs/tests/*` at v3,
-`docs/evidence/US-001-test-generation-report.md` at v3), the attempt-1
-`IMPLEMENTATION` change set above, the three design docs flipped
-`DRAFT → APPROVED`, a `story-orchestrator/SKILL.md` edit, and the orchestrator's
-`docs/workflow/{workflow-state.yaml,history.jsonl}` edits. The guarded loop-back
-change (`stage-map.yaml` + `express-implementor/SKILL.md`) was committed
-separately as `327b79e`. `express-implementor` does not commit; the human curates
-and squashes the rest (per the recorded preference). Nothing here overwrote that
-work.
+The working tree carries `TEST_WRITING` attempt 4's uncommitted output
+(`tests/integration/auth-register-audit.test.ts` V-1 fix; `docs/tests/*` and
+`docs/evidence/US-001-test-generation-report.md` at v4), the orchestrator's
+`docs/workflow/{workflow-state.yaml,history.jsonl}` edits, and the untracked
+`docs/verification/US-001-implementation-verification.md` from the
+`IMPLEMENTATION_VERIFICATION` attempt-1 `BLOCKED` run. The attempt-1
+`IMPLEMENTATION` change set itself is committed (`1d1a05a`).
+`express-implementor` does not commit; the human curates and squashes the rest
+(recorded preference). Nothing here overwrote that work; this stage wrote only
+this report.
 
 ## 5. Validation Evidence
 
-Actual commands, actual exit status, **re-run for attempt 3**. Prisma client
-generated once with a dummy `DATABASE_URL`
-(`npx prisma generate` → "Generated Prisma Client (v7.10.0)").
+Actual commands, actual exit status, **executed this attempt (4)** against the
+live PC-1 database. `DATABASE_URL` pointed at the disposable
+`postgres:17-alpine` on host 5433 (`.env.test`, git-ignored).
+
+**Database bring-up.**
+
+| Step | Command | Exit | Result |
+|---|---|---|---|
+| Start DB | `npm run db:test:up` (`docker compose up -d db`) | 0 | `customer-portal-db-1` started; `pg_isready` after 1s |
+| Migrate | `npx prisma migrate deploy` | 0 | "Applying migration `20260903192254_init_user`" → "All migrations have been successfully applied." — clean apply to an empty database |
+| Migrate status | `npx prisma migrate status` | 0 | "Database schema is up to date!" |
+| Client | `npx prisma generate` | 0 | "Generated Prisma Client (v7.10.0)" |
+| Schema check | `psql \d "user"` | 0 | `id uuid` PK; `email varchar(254)` `UNIQUE`; `password_hash text`; `role "Role"` default `CUSTOMER`; `created_at`/`updated_at` `timestamp(3) with time zone` — matches db-design §Model, PC-3…PC-6 |
+
+**Definition-of-Done checks.**
 
 | Check | Command | Exit | Result |
 |---|---|---|---|
@@ -239,29 +265,45 @@ generated once with a dummy `DATABASE_URL`
 | Circular deps | `npm run check:cycles` | 0 | "no circular dependency was found" (29/29 analyzed) |
 | Build | `npm run build` | 0 | `tsc -p tsconfig.json` emitted, no error |
 | Audit | `npm run audit:check` | 0 | "no unaccepted high/critical advisories (2 accepted)" — no dependency added |
-| Harness | `npm run validate:harness` | 0 | "harness OK: 23 stages, 27 artifacts, 19 skills, 8 warning(s)". 6 of the 8 warnings are the pre-existing history-timestamp / stale-input-on-backward-edge set. The 2 new ones ("implementation-report inputs record test-strategy/ac-test-matrix v2, but they are at v3 — stale input; IMPLEMENTATION has not re-run since") are exactly this re-entry and **are cleared by this v3 report** recording those inputs at v3. |
-| Unit + harness tests | `npx vitest run --project unit --project harness` | 0 | **6 files, 33 / 33 passed** (`password.test.ts` 4, `errorHandler.test.ts` 11, `validateRequest.test.ts` 5, `auth.service.test.ts` 6, `users.service.test.ts` 5, `harness.test.ts` 2) |
-| Integration tests | `npx vitest run --project integration` | 1 | **NOT RUN** — `globalSetup` aborted: `PrismaConfigEnvError: Cannot resolve environment variable: DATABASE_URL` while running `npx prisma migrate deploy`. No Docker / PostgreSQL in this environment. Designed behaviour, not a regression (§7.1). |
-| Full test gate | `npm run test` | 1 | fails only at the `integration` project's `globalSetup`, as above. |
+| Harness | `npm run validate:harness` | 0 | "harness OK: 23 stages, 27 artifacts, 19 skills, 11 warning(s)" — see note below |
+| Focused: audit test | `npx vitest run tests/integration/auth-register-audit.test.ts` | 0 | **1 file, 2 / 2 passed** — the V-1-corrected EC-4 case runs green (was 2 passed / 1 error / exit 1 at `IMPLEMENTATION_VERIFICATION` attempt 1) |
+| **Full test gate** | `npm run test` | 0 | **13 files, 73 / 73 passed** — `unit` + `harness` + the full story-level `integration` suite |
 
-The front-matter `tests_status: NOT_RUN` reflects the **story-level acceptance
-suite** (the 40 integration tests): it did not execute here. The
-database-independent tests (33 unit + harness) all pass — recorded above and not
-hidden by that field.
+`tests_status: PASS` — the story-level acceptance suite executed this attempt and
+is green, so the field that read `NOT_RUN` in v1–v3 is now `PASS`.
 
-Contract semantic check (owed to `IMPLEMENTATION_VERIFICATION`, `DESIGN_REVIEW:d-4`):
-the generated `docs/api/openapi.json` carries all seven responses, the
-`X-Request-Id` header on each, `additionalProperties: false` on both closed
-objects, `writeOnly` on `password`, `minProperties: 1` on `FieldErrors`, and
-`email` as `type: string / format: email / minLength: 1 / maxLength: 254`. Two
-non-literal differences from `US-001-openapi.yaml`, both anticipated by d-4 and
-semantically equivalent: `role` / `code` render as single-value `enum: [...]`
-rather than `const: ...`, and the 400 body renders as `anyOf` rather than `oneOf`
-(the `const` on `code` keeps the branches mutually exclusive).
+**`validate:harness` warnings (11).** None is an error and none is introduced by
+this attempt:
+
+- Lines 10 / 16 / 50 — pre-existing `history.jsonl` timestamp-ordering and
+  backward-routing warnings (the last one is the recorded
+  `IMPLEMENTATION_VERIFICATION → TEST_WRITING` human route). Untouched here.
+- Three "stale input on a backward edge" warnings on `api-design` / `db-design` /
+  `entity-model` vs `design-review` v2, and one on `implementation-plan` vs
+  `plan-review` v4 — structural, flagged by the validator itself as
+  "not substantive".
+- Two on **this report's predecessor** (`implementation-report` records
+  test-strategy / ac-test-matrix v3, they are at v4) — **cleared by this v4
+  report**, which records both inputs at v4.
+- Two on `implementation-verification` recording test artifacts at v3 — owed to
+  the next `IMPLEMENTATION_VERIFICATION` run, which has not re-executed since the
+  loop-back. Expected while the workflow is on its way back through that stage.
+
+**Contract semantic check** (`DESIGN_REVIEW:d-4`, owed formally to
+`IMPLEMENTATION_VERIFICATION`): the generated `docs/api/openapi.json` carries all
+seven responses, the `X-Request-Id` header on each, `additionalProperties: false`
+on both closed objects, `writeOnly` on `password`, `minProperties: 1` on
+`FieldErrors`, and `email` as `type: string / format: email / minLength: 1 /
+maxLength: 254`. Two non-literal differences from `US-001-openapi.yaml`, both
+anticipated by d-4 and semantically equivalent: `role` / `code` render as
+single-value `enum: [...]` rather than `const: ...`, and the 400 body renders as
+`anyOf` rather than `oneOf` (the `const` on `code` keeps the branches mutually
+exclusive). `npm run openapi:check` exits 0.
 
 ## 6. Configuration Changes
 
-Unchanged from attempt 1.
+Unchanged from attempt 1 — no configuration file was touched this attempt. The
+attempt-1 set, for the record:
 
 | File | Change | Approving step |
 |---|---|---|
@@ -275,115 +317,105 @@ Unchanged from attempt 1.
 | `.github/workflows/ci.yml` | `services: postgres` on host 5433; job-level `DATABASE_URL`; new "Generate Prisma client" step; stale header comment removed. | Step 3; D-4 |
 | `docker-compose.yml` (new) | `db` service, `postgres:17-alpine`, host 5433, tmpfs data, healthcheck. | Step 3; FR-19, PC-1 |
 
-No secret is committed. `.env.test` is not created here and stays git-ignored.
+No secret is committed. `.env.test` is developer-local and stays git-ignored
+(`git check-ignore -v .env.test` → `.gitignore:28`; `git diff -- .gitignore`
+empty).
 
 ## 7. Deviations and Discovered Problems
 
-### 7.1 The integration suite was not executed — no PC-1 database in this environment
+### 7.1 The integration suite — now executed (`IMPLEMENTATION_PLANNING:R-P1`)
 
-`IMPLEMENTATION_PLANNING:R-P1` predicted the integration tests cannot run before
-Steps 2–3 and named Step 12 as "the first suite execution". The plan and PC-1
-both assume the implementing environment can bring up a disposable PostgreSQL
-(`npm run db:test:up`, or a CI `services:` block). **This environment has no
-Docker and no PostgreSQL** — verified again this attempt: `docker` is not on
-`PATH`, `C:\Program Files\Docker` does not exist, WSL is not installed, and
-`DATABASE_URL` is unset. So:
+v1–v3 could not run the story-level integration tests: those environments had no
+Docker and no PostgreSQL, so `npm run test` aborted at the `integration`
+project's `globalSetup` (`npx prisma migrate deploy` with `DATABASE_URL` unset),
+which is the designed PC-1 fail-fast. `IMPLEMENTATION_PLANNING:R-P1` was carried
+forward for exactly this reason, with first execution named as owed to CI /
+`IMPLEMENTATION_VERIFICATION`.
 
-- `npm run test` fails at the `integration` project's `globalSetup` (which runs
-  `npx prisma migrate deploy`). The failure message is exactly the PC-1
-  actionable text — this is the designed behaviour, not a regression.
-- The 40 acceptance-criteria integration tests in
-  `tests/integration/auth-register-*.test.ts` are **code-complete but
-  unverified** in this environment.
+**This attempt's environment has Docker 29.7.2.** `npm run db:test:up` +
+`npx prisma migrate deploy` + `npm run test` ran the whole suite: **13 files /
+73 tests, exit 0** (§5). `R-P1`'s evidence now exists inside `IMPLEMENTATION`.
+It is still carried as a non-blocking finding rather than self-closed here —
+`IMPLEMENTATION_VERIFICATION` independently re-runs the suite and owns the
+closure — but it is no longer "unverified in this environment".
 
-This is not a code or plan defect: `typecheck` and `lint` reach 0, the build
-passes, and the 33 unit + harness tests pass. It is an infrastructure gap. CI
-(after the `ci.yml` changes here) provides the database and runs the full suite;
-a reviewer with Docker can run `npm run db:test:up && npm run test`. It is
-**carried as a non-blocking finding** (`IMPLEMENTATION_PLANNING:R-P1`), not
-masked as a pass and not a reason to hold at `BLOCKED`. Its first execution is
-owed to CI / `IMPLEMENTATION_VERIFICATION`, which the 2026-09-03 human note at
-`TEST_WRITING` also requires to confirm `typecheck` and `lint` reach 0 once the
-schema is present (they do — §5).
+### 7.2 `auth-register-audit.test.ts` EC-4 — `IMPLEMENTATION_VERIFICATION:V-1`, RESOLVED upstream at `TEST_WRITING`
 
-### 7.2 `auth-register-password-validation.test.ts` — the caseless-script case: RESOLVED upstream at `TEST_WRITING`
+`IMPLEMENTATION_VERIFICATION` attempt 1 (`2026-09-03T22:54:35Z`) returned
+`BLOCKED`: `tests/integration/auth-register-audit.test.ts` line 50 stubbed
+`logger.info` on the shared `src/lib/logger.ts` singleton to throw
+unconditionally. `src/app.ts` binds pino-http to that same singleton, and it
+calls `logger.info` from a `res` `'finish'` handler **after** the test's `await`
+resolves — outside any `try/catch` — so the throw became an uncaught exception
+and `npm run test` exited non-zero. Every assertion passed and every AC was
+behaviourally verified; production code (`auth.service.ts`'s `try/catch` around
+`deps.auditLog`) was correct. The defect was in an authored `TEST_WRITING`
+artifact, which `express-implementor` may not edit, so a human routed the Story
+back to `TEST_WRITING` (`2026-09-03T22:54:40Z`, `human:KShust`).
 
-Attempt 2 returned `CHANGES_REQUIRED` → `TEST_WRITING` (`changes_required_tests`)
-because the case *"accepts a 12-character password written in a script with no
-letter case"* was **unsatisfiable as written** and contradicted SC-1: its
-fixture `'中文密码1234!'` was 9 code points (its own `>= 12` precondition threw),
-and even a longer caseless fixture reaches only 2 of SC-1's 4 classes (Han and
-`!` both fall in the single "anything else" class), so a literal SC-1
-implementation returns `400` where the test expected `201`.
-
-`TEST_WRITING` attempt 3 corrected it (verdict `PASS`, 2026-09-03T21:44:15Z).
-The case is now *"rejects a caseless-script password that can reach only 2 of
-the 4 classes (SC-1 known limitation, EC-6)"*, fixture
-`'中文密码短语加密内容1234'` (14 code points: 10 Han + 4 digits = 2 classes),
-asserting `400` / `VALIDATION_FAILED` / `fieldErrors.password`. This matches
-`src/modules/auth/auth.schemas.ts` `characterClassCount(value) >= 3` exactly
-(confirmed by reading the schema this attempt). `test-strategy` v3 (negative
-scenario), `ac-test-matrix` v3 (row → 400) and `test-generation-report` v3 are
-realigned. **No assertion was weakened** — the correction made the case
-stricter. `express-implementor` made no production change for this: SC-1 was
-already implemented literally per `AGENTS.md` AC-004. `IMPLEMENTATION:T-1` is
-**RESOLVED**.
+`TEST_WRITING` attempt 4 (`PASS`, `2026-09-03T23:08:52Z`) scoped the stub: it
+now throws only when the first argument is the `{ event: 'user.registered', … }`
+payload and returns `undefined` for every other `.info` call — notably
+pino-http's completion line. Both EC-4 assertions are byte-identical (request
+`201`; `logger.error` called). Verified this attempt: the file runs 2 / 2 exit 0
+in isolation and inside the green full run. `express-implementor` made no
+production change for V-1. `IMPLEMENTATION_VERIFICATION:V-1` is **RESOLVED**; it
+leaves the open set with this report.
 
 ### 7.3 `src/lib/shutdown.ts` — a one-line bridge around an `eslint.config.js` / `module-map.md` tension
 
-`module-map.md` puts the Prisma disconnect in `src/server.ts` and lets it import
-`src/lib`; `eslint.config.js`'s PRISMA rule blocks `**/lib/prisma.{js,ts}` for
-`src/server.ts` with no exception. `src/lib/shutdown.ts` re-exports
-`disconnectPrisma` under a path the rule's globs do not match. The plan lists
-`eslint.config.js` as "not changed" and the human's `TEST_WRITING` note forbids
-editing it to go green, so the check was left untouched and the seam bridged with
-the smallest possible file, which flags itself for review. **Recommended:** a
-`server.ts` carve-out in `eslint.config.js` (a human change) after which
-`shutdown.ts` can be deleted and `server.ts` imports `./lib/prisma.js` directly.
-Carried unchanged (`IMPLEMENTATION:E-1`).
+Unchanged from attempt 1. `module-map.md` puts the Prisma disconnect in
+`src/server.ts` and lets it import `src/lib`; `eslint.config.js`'s PRISMA rule
+blocks `**/lib/prisma.{js,ts}` for `src/server.ts` with no exception.
+`src/lib/shutdown.ts` re-exports `disconnectPrisma` under a path the rule's
+globs do not match. The plan lists `eslint.config.js` as "not changed" and the
+human's `TEST_WRITING` note forbids editing it to go green, so the check was
+left untouched and the seam bridged with the smallest possible file, which flags
+itself for review. **Recommended:** a `server.ts` carve-out in
+`eslint.config.js` (a human change), after which `shutdown.ts` is deleted and
+`server.ts` imports `./lib/prisma.js` directly. Carried unchanged
+(`IMPLEMENTATION:E-1`).
 
-### 7.4 `prisma generate` now requires `DATABASE_URL`
+### 7.4 `prisma generate` / `validate` require `DATABASE_URL`
 
-Because `prisma.config.ts` resolves `env('DATABASE_URL')` eagerly (D-2),
-`npx prisma generate` — and `npx prisma validate` — fail when `DATABASE_URL` is
-unset. This is D-2's intended fail-fast, but it means the generated client (not
-committed) cannot be produced on a bare checkout. Handled: `ci.yml` sets a
-job-level `DATABASE_URL` and adds an explicit generate step. **No project
-`postinstall` was added** — it would break `npm ci` in any environment without
-`DATABASE_URL`. Local developers need `DATABASE_URL` in their environment before
-`npm run prisma:generate`; `tests/README.md` and `.env.example` document it.
-Carried unchanged (`IMPLEMENTATION:G-1`).
+Unchanged from attempt 1. Because `prisma.config.ts` resolves
+`env('DATABASE_URL')` eagerly (D-2), `npx prisma generate` and
+`npx prisma validate` fail when `DATABASE_URL` is unset — D-2's intended
+fail-fast, but it means the (uncommitted) generated client cannot be produced on
+a bare checkout. Handled: `ci.yml` sets a job-level `DATABASE_URL` and adds an
+explicit generate step; no project `postinstall` (it would break `npm ci`).
+This attempt set `DATABASE_URL` from `.env.test` before `prisma generate`, which
+succeeded. Carried unchanged (`IMPLEMENTATION:G-1`).
 
 ### 7.5 Migration authored with `prisma migrate diff`, not `prisma migrate dev`
 
-`npm run prisma:migrate` (`prisma migrate dev`) needs a reachable database, which
-this environment lacks. The migration SQL was generated offline and
+Unchanged from attempt 1. The migration SQL was generated offline and
 deterministically with
 `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script`
-and placed at `prisma/migrations/20260903192254_init_user/migration.sql` with a
-`migration_lock.toml`. The content is the additive `CREATE TYPE "Role"` +
-`CREATE TABLE "user"` + PK + unique index the db-design "Migration" section
-specifies. `prisma migrate deploy` (run by `globalSetup` and CI) validates and
-applies it — `IMPLEMENTATION_VERIFICATION` should confirm it applies cleanly to
-an empty database and that `npx prisma migrate status` reports nothing pending.
+at `prisma/migrations/20260903192254_init_user/migration.sql` with a
+`migration_lock.toml`. This attempt confirmed `prisma migrate deploy` **applies
+it cleanly to an empty database** and `prisma migrate status` reports nothing
+pending (§5) — the check §7.5 of v3 said `IMPLEMENTATION_VERIFICATION` should
+perform. It should still confirm independently, but the evidence is now on
+record.
 
 ### 7.6 Non-blocking findings addressed / carried
 
-- `SPECIFICATION:FR-18` — **addressed** at attempt 1: the four JWT entries
-  removed from `.env.example`; `src/config/env.ts` declares no JWT variable.
-- `PLAN_REVIEW:p-8` — **addressed** at attempt 1: `sequence.shuffle` is in the
-  shared root `test` block as well as on `unit`.
-- `PLAN_REVIEW:p-10` — **addressed** at attempt 1: `vitest.config.ts` no longer
-  makes an absent `.env.test` fatal for `test:unit` / `harness`.
-- `IMPLEMENTATION:T-1` — **RESOLVED** at `TEST_WRITING` attempt 3 (§7.2); it
-  leaves the open set with this report.
+- `IMPLEMENTATION_VERIFICATION:V-1` — **RESOLVED** at `TEST_WRITING` attempt 4
+  (§7.2); leaves the open set with this report.
+- `SPECIFICATION:FR-18`, `PLAN_REVIEW:p-8`, `PLAN_REVIEW:p-10` — addressed at
+  attempt 1, unchanged.
 - `IMPACT_ANALYSIS:R-4`, `DESIGN_REVIEW:e-2`, `DESIGN_REVIEW:d-4`,
-  `IMPLEMENTATION_PLANNING:R-P1`, `PLAN_REVIEW:p-9` — carried to
-  `IMPLEMENTATION_VERIFICATION` (the behaviour is implemented; closing them needs
-  the integration/contract evidence this environment cannot produce).
+  `IMPLEMENTATION_PLANNING:R-P1` — the behaviour is implemented and the
+  integration / contract evidence each was waiting on now exists and is recorded
+  in §5. **Carried, not self-closed:** `IMPLEMENTATION_VERIFICATION` gathers its
+  own evidence and owns their closure.
 - `IMPLEMENTATION:E-1`, `IMPLEMENTATION:G-1` — carried unchanged (§7.3, §7.4).
+- `PLAN_REVIEW:p-9` — carried; `implementation-planner`'s Source Artifacts table
+  vs front-matter version mismatch, untouched here.
 - `IMPACT_ANALYSIS:R-7` — still owed to `PR_PREPARATION`.
-- `IMPLEMENTATION_PLANNING:R-P2` — documentary, owed to a human /
+- `IMPLEMENTATION_PLANNING:R-P2` — documentary (PC-1 names `.env.test` as a
+  deliverable that D-4 deliberately does not ship); owed to a human /
   `IMPLEMENTATION_PLANNING`.
 
 ## 8. Open Decisions
@@ -404,15 +436,15 @@ were all implemented exactly as SC-1 / SC-3 / SC-9 / AD-6 decide them.
 
 `verdict: PASS`, `next_stage: IMPLEMENTATION_VERIFICATION`.
 
-The implementation is code-complete and unchanged since the attempt-1 change
-set; every database-independent Definition-of-Done check was re-run for attempt
-3 and passes with recorded evidence (§5), including `typecheck` and `lint` at 0
-(`TEST_WRITING:B-2` stays discharged). The sole prior blocker
-(`IMPLEMENTATION:T-1`, an unsatisfiable authored test) was resolved upstream by
-`TEST_WRITING` attempt 3; this report records the corrected test artifacts at
-v3. The 40-test acceptance-criteria integration suite remains **unexecuted in
-this environment** for lack of a PC-1 PostgreSQL — carried as
-`IMPLEMENTATION_PLANNING:R-P1`, not masked as a pass, with its first run owed to
-CI / `IMPLEMENTATION_VERIFICATION`, which the 2026-09-03 human note already
-assigns the job of confirming the full green sequence on a Postgres-capable
-environment.
+The implementation is code-complete and unchanged since the attempt-1 change set
+(`1d1a05a`); this attempt-4 re-entry touched no production or test file. Every
+Definition-of-Done check was executed against a live PC-1 PostgreSQL and passes
+with recorded evidence (§5), including the full story-level integration suite
+(`npm run test` → 13 files / 73 tests, exit 0) that no prior `IMPLEMENTATION`
+attempt could run, and the V-1-corrected `auth-register-audit.test.ts` (2 / 2,
+exit 0). `IMPLEMENTATION_VERIFICATION:V-1` is resolved upstream by
+`TEST_WRITING` attempt 4; this report records the corrected test artifacts at
+v4. The integration and contract evidence behind `IMPACT_ANALYSIS:R-4`,
+`DESIGN_REVIEW:e-2`, `DESIGN_REVIEW:d-4` and `IMPLEMENTATION_PLANNING:R-P1` now
+exists and is on record; their formal closure is carried to the independent
+`IMPLEMENTATION_VERIFICATION` run.

@@ -4,40 +4,30 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: IMPLEMENTATION
-previous_stage: TEST_WRITING
-last_completed_stage: TEST_WRITING
+current_stage: IMPLEMENTATION_VERIFICATION
+previous_stage: IMPLEMENTATION
+last_completed_stage: IMPLEMENTATION
 status: IN_PROGRESS
-attempt: 4
-last_invoked_skill: test-writer
+attempt: 3
+last_invoked_skill: express-implementor
 last_result:
   verdict: PASS
-  stage: TEST_WRITING
-  recorded_at: 2026-09-03T23:08:52Z
+  stage: IMPLEMENTATION
+  recorded_at: 2026-09-03T23:22:57Z
 last_artifacts:
-  - type: test_strategy
-    path: docs/tests/US-001-test-strategy.md
-    version: 4
-  - type: ac_test_matrix
-    path: docs/tests/US-001-ac-test-matrix.md
-    version: 4
-  - type: test_generation_report
-    path: docs/evidence/US-001-test-generation-report.md
+  - type: implementation_report
+    path: docs/evidence/US-001-implementation-report.md
     version: 4
 pending_human_gate: null
-# IMPLEMENTATION_VERIFICATION:V-1 is RESOLVED. test-writer scoped the EC-4
-# mock in tests/integration/auth-register-audit.test.ts: the logger.info stub
-# now throws only for the { event: 'user.registered' } payload and is a no-op
-# for every other .info call, so pino-http's post-response completion log no
-# longer hits a throwing stub from the res 'finish' handler. Both EC-4
-# assertions are unchanged (201 returned; logger.error called); no production
-# file touched, no assertion weakened. `npm run test` now exits 0 - 13 files,
-# 73 tests, 0 errors - against the PC-1 database. This is the only
-# non-documentation diff in the working tree; test-generation-report.md's
-# "Revision 4" section documents it in full.
+# express-implementor's fourth entry re-confirmed the change set against
+# TEST_WRITING's V-1 fix rather than writing anything new: `git diff
+# --name-status HEAD` over src/, prisma/, vitest.config.ts and package.json is
+# empty - production code is byte-identical to what attempt 1 already wrote.
+# docs/evidence/US-001-implementation-report.md moves v3 -> v4, recording the
+# realigned test artifacts as inputs and the checks re-run clean.
 blocking_issues: []
-# Derived from history.jsonl: every id whose latest event says RAISED.
-# IMPLEMENTATION_VERIFICATION:V-1 closes (RESOLVED). The set drops from 10 to 9.
+# Derived from history.jsonl: every id whose latest event says RAISED. This
+# transition raised and closed nothing of its own; the set is unchanged at 9.
 non_blocking_findings:
   - id: "IMPACT_ANALYSIS:R-4"
     severity: MAJOR
@@ -76,6 +66,6 @@ non_blocking_findings:
     status: RAISED
     summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate / validate fail when DATABASE_URL is unset and the generated client cannot be produced on a bare checkout; ci.yml adds a job-level DATABASE_URL and an explicit generate step, no project postinstall (it would break npm ci). Flag for a possible PC-1 note"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T23:08:52Z
+updated_at: 2026-09-03T23:22:57Z
 completed_at: null
 archived_at: null
