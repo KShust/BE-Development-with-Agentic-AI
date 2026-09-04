@@ -5,64 +5,36 @@ version: 1
 story: US-001
 workflow: story-delivery
 current_stage: IMPLEMENTATION_VERIFICATION
-previous_stage: IMPLEMENTATION
+previous_stage: IMPLEMENTATION_VERIFICATION
 last_completed_stage: IMPLEMENTATION
-status: IN_PROGRESS
-# attempt := 1 for IMPLEMENTATION_VERIFICATION. This is a forward move into a
-# stage this Story has never entered (grep of history.jsonl: no event has
-# to_stage IMPLEMENTATION_VERIFICATION), so state-schema.md rule 4 gives 1. The
-# history event this transition appends carries attempt 3 - the attempt of
-# IMPLEMENTATION, the stage that RAN (express-implementor's third entry:
-# 2026-09-03T19:54:52Z BLOCKED, 2026-09-03T21:20:00Z CHANGES_REQUIRED, this one
-# PASS).
+status: BLOCKED
 attempt: 1
-last_invoked_skill: express-implementor
+last_invoked_skill: implementation-verifier
 last_result:
-  verdict: PASS
-  stage: IMPLEMENTATION
-  recorded_at: 2026-09-03T22:01:34Z
+  verdict: BLOCKED
+  stage: IMPLEMENTATION_VERIFICATION
+  recorded_at: 2026-09-03T22:54:35Z
 last_artifacts:
-  - type: implementation_report
-    path: docs/evidence/US-001-implementation-report.md
-    version: 3
+  - type: implementation_verification
+    path: docs/verification/US-001-implementation-verification.md
+    version: 2
 pending_human_gate: null
-# IMPLEMENTATION attempt 3 (re-entry after the changes_required_tests loop-back)
-# returned PASS. express-implementor added, modified and removed no production or
-# test file - the implementation is code-complete and unchanged since its
-# attempt-1 change set. It consumed the TEST_WRITING v3 correction (T-1) and
-# re-ran every database-independent Definition-of-Done check:
-#   format:check 0 | lint 0 | typecheck 0 | openapi:check 0 | check:cycles 0 |
-#   build 0 | audit:check 0 (2 accepted) | validate:harness 0 (6 pre-existing
-#   warnings) | vitest --project unit --project harness 33/33.
-# The implementation_report was revised DRAFT v2 -> DRAFT v3: front matter now
-# records test-strategy v3 and ac-test-matrix v3 as inputs (this clears the two
-# validate:harness stale-input warnings that would have become errors on this
-# forward move), and the verdict section moved from CHANGES_REQUIRED to PASS.
+# implementation-verifier gathered its own evidence rather than trusting the
+# implementation report: 73 of 73 tests pass and all seven Acceptance Criteria
+# are behaviourally verified, but `npm run test` itself exits 1 - a single
+# uncaught exception after the suite otherwise finished green. Held at BLOCKED
+# because the defect is in an authored test, not in production code.
 #
-# IMPLEMENTATION:T-1 was already RESOLVED in the 2026-09-03T21:44:15Z event
-# (test-writer), so it is not re-closed here; this event raises nothing and
-# closes nothing (findings: []). The derived non_blocking set below is unchanged
-# from the previous transition (9 ids).
-#
-# Known and carried: `npm run test` exits 1 in THIS environment because the
-# integration project's globalSetup runs `npx prisma migrate deploy` and there is
-# no Docker / PostgreSQL / DATABASE_URL here. No test fails; the suite does not
-# start. This is IMPLEMENTATION_PLANNING:R-P1, carried NOT masked as PASS. The
-# 2026-09-03 human note at TEST_WRITING already assigns IMPLEMENTATION_VERIFICATION
-# / CI the job of running the 40 acceptance-criteria integration tests and
-# confirming the full green sequence on a Postgres-capable environment. The Stop
-# hook (.claude/hooks/validate-full.py) additionally errored out with a Python
-# TypeError (str + NoneType) - a defect in the hook itself, reported to the human,
-# not touched (harness change = human decision).
-#
-# IMPLEMENTATION_VERIFICATION now runs (skill: implementation-verifier). It needs
-# an environment that can bring up the PC-1 PostgreSQL (`npm run db:test:up`, or
-# CI's services: postgres) to execute the integration suite and discharge the
-# carried findings below.
-blocking_issues: []
-# Derived from history.jsonl: every id whose latest event says RAISED. This
-# transition raised nothing and closed nothing; the set is carried unchanged
-# from the 2026-09-03T21:44:15Z transition (9 ids).
+# implementation_verification is cited at version 2 - its final, actual front-
+# matter value - because the doc is overwritten wholesale per revision rather
+# than appended to; its true v1 (BLOCKED) content at this historical point was
+# not separately captured by any commit and cannot be recovered, matching how
+# docs/evidence/US-001-implementation-report.md was handled earlier in this
+# Story.
+blocking_issues:
+  - "IMPLEMENTATION_VERIFICATION:V-1 (MAJOR) - npm run test exits 1: tests/integration/auth-register-audit.test.ts (EC-4) stubs logger.info on the shared src/lib/logger.ts singleton to throw unconditionally; pino-http in src/app.ts is bound to the same singleton and calls logger.info from a res 'finish' handler after the test's await resolves, with no try/catch around that call - an uncaught exception, not an assertion failure. All 73 tests pass and all seven Acceptance Criteria are behaviourally verified; production code (auth.service.ts's try/catch around deps.auditLog) is correct and unaffected. The defect is in an authored TEST_WRITING artifact, which express-implementor may not edit. Responsible stage: TEST_WRITING. IMPLEMENTATION_VERIFICATION's only loop-back key (changes_required) routes to IMPLEMENTATION, not TEST_WRITING - this needs a human-directed route."
+# Derived from history.jsonl: every id whose latest event says RAISED.
+# IMPLEMENTATION_VERIFICATION:V-1 opens (RAISED). The set grows from 9 to 10.
 non_blocking_findings:
   - id: "IMPACT_ANALYSIS:R-4"
     severity: MAJOR
@@ -100,7 +72,11 @@ non_blocking_findings:
     severity: MINOR
     status: RAISED
     summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate / validate fail when DATABASE_URL is unset and the generated client cannot be produced on a bare checkout; ci.yml adds a job-level DATABASE_URL and an explicit generate step, no project postinstall (it would break npm ci). Flag for a possible PC-1 note"
+  - id: "IMPLEMENTATION_VERIFICATION:V-1"
+    severity: MAJOR
+    status: RAISED
+    summary: "npm run test exits 1: tests/integration/auth-register-audit.test.ts (EC-4, line 50) stubs logger.info on the shared src/lib/logger.ts singleton to throw; pino-http in src/app.ts is bound to the same singleton and calls logger.info from a res finish handler after the test await resolves, with no try/catch -> uncaught exception -> non-zero run. All 73 tests pass and all 7 ACs are behaviourally verified; production code (auth.service.ts try/catch around deps.auditLog) is correct. Defect is in an authored TEST_WRITING artifact; express-implementor may not edit a test. Responsible stage: TEST_WRITING."
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T22:01:34Z
+updated_at: 2026-09-03T22:54:35Z
 completed_at: null
 archived_at: null
