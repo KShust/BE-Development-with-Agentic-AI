@@ -4,37 +4,41 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: IMPLEMENTATION_VERIFICATION
+current_stage: TEST_WRITING
 previous_stage: IMPLEMENTATION_VERIFICATION
 last_completed_stage: IMPLEMENTATION
-status: BLOCKED
-attempt: 1
-last_invoked_skill: implementation-verifier
+status: IN_PROGRESS
+attempt: 4
+last_invoked_skill: null
 last_result:
-  verdict: BLOCKED
+  verdict: HUMAN_REJECTED
   stage: IMPLEMENTATION_VERIFICATION
-  recorded_at: 2026-09-03T22:54:35Z
+  recorded_at: 2026-09-03T22:54:40Z
 last_artifacts:
   - type: implementation_verification
     path: docs/verification/US-001-implementation-verification.md
     version: 2
 pending_human_gate: null
-# implementation-verifier gathered its own evidence rather than trusting the
-# implementation report: 73 of 73 tests pass and all seven Acceptance Criteria
-# are behaviourally verified, but `npm run test` itself exits 1 - a single
-# uncaught exception after the suite otherwise finished green. Held at BLOCKED
-# because the defect is in an authored test, not in production code.
+# Human decision, on instruction from the user in session. stage-map.yaml
+# gives IMPLEMENTATION_VERIFICATION no automated edge to TEST_WRITING - its
+# only loop_back is changes_required -> IMPLEMENTATION - so this route is
+# recorded the way a gate rejection routes to on_reject: skill null,
+# decided_by human, verdict HUMAN_REJECTED.
 #
-# implementation_verification is cited at version 2 - its final, actual front-
-# matter value - because the doc is overwritten wholesale per revision rather
-# than appended to; its true v1 (BLOCKED) content at this historical point was
-# not separately captured by any commit and cannot be recovered, matching how
-# docs/evidence/US-001-implementation-report.md was handled earlier in this
-# Story.
-blocking_issues:
-  - "IMPLEMENTATION_VERIFICATION:V-1 (MAJOR) - npm run test exits 1: tests/integration/auth-register-audit.test.ts (EC-4) stubs logger.info on the shared src/lib/logger.ts singleton to throw unconditionally; pino-http in src/app.ts is bound to the same singleton and calls logger.info from a res 'finish' handler after the test's await resolves, with no try/catch around that call - an uncaught exception, not an assertion failure. All 73 tests pass and all seven Acceptance Criteria are behaviourally verified; production code (auth.service.ts's try/catch around deps.auditLog) is correct and unaffected. The defect is in an authored TEST_WRITING artifact, which express-implementor may not edit. Responsible stage: TEST_WRITING. IMPLEMENTATION_VERIFICATION's only loop-back key (changes_required) routes to IMPLEMENTATION, not TEST_WRITING - this needs a human-directed route."
-# Derived from history.jsonl: every id whose latest event says RAISED.
-# IMPLEMENTATION_VERIFICATION:V-1 opens (RAISED). The set grows from 9 to 10.
+# last_completed_stage stays IMPLEMENTATION, carried forward unchanged:
+# IMPLEMENTATION_VERIFICATION did not complete successfully here, it is
+# routed away with unresolved work, so it does not become the new
+# last_completed_stage - matching the precedent at b608d7a
+# (HUMAN_PLAN_APPROVAL's own HUMAN_REJECTED left last_completed_stage at
+# PLAN_REVIEW, not at the rejected gate).
+#
+# test-writer re-enters at attempt 4 to fix V-1 only: scope the EC-4 failure
+# to the audit path, keep both existing assertions, change no production
+# file, weaken no assertion.
+blocking_issues: []
+# Derived from history.jsonl: every id whose latest event says RAISED. This
+# transition's own findings are empty - it is a routing decision, not a new
+# review - so the set is unchanged from the previous event, still 10.
 non_blocking_findings:
   - id: "IMPACT_ANALYSIS:R-4"
     severity: MAJOR
@@ -77,6 +81,6 @@ non_blocking_findings:
     status: RAISED
     summary: "npm run test exits 1: tests/integration/auth-register-audit.test.ts (EC-4, line 50) stubs logger.info on the shared src/lib/logger.ts singleton to throw; pino-http in src/app.ts is bound to the same singleton and calls logger.info from a res finish handler after the test await resolves, with no try/catch -> uncaught exception -> non-zero run. All 73 tests pass and all 7 ACs are behaviourally verified; production code (auth.service.ts try/catch around deps.auditLog) is correct. Defect is in an authored TEST_WRITING artifact; express-implementor may not edit a test. Responsible stage: TEST_WRITING."
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T22:54:35Z
+updated_at: 2026-09-03T22:54:40Z
 completed_at: null
 archived_at: null
