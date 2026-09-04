@@ -4,28 +4,68 @@
 version: 1
 story: US-001
 workflow: story-delivery
-current_stage: RECONCILIATION
-previous_stage: SECURITY_REVIEW
-last_completed_stage: SECURITY_REVIEW
+current_stage: PR_REVIEW
+previous_stage: RECONCILIATION
+last_completed_stage: RECONCILIATION
 status: IN_PROGRESS
+# attempt := 1 for PR_REVIEW (state-schema.md rule 4: count of history.jsonl
+# events whose to_stage is PR_REVIEW, including the event this transition
+# appends). PR_REVIEW has never been entered for this Story before.
 attempt: 1
-last_invoked_skill: security-reviewer
+last_invoked_skill: reconciliation-reviewer
 last_result:
   verdict: PASS
-  stage: SECURITY_REVIEW
-  recorded_at: 2026-09-03T23:48:55Z
+  stage: RECONCILIATION
+  recorded_at: 2026-09-04T06:13:25Z
 last_artifacts:
-  - type: security_review
-    path: docs/reviews/security/US-001-security-review.md
+  - type: reconciliation
+    path: docs/reviews/reconciliation/US-001-reconciliation.md
+    version: 1
+  - type: traceability
+    path: docs/reconciliation/US-001-traceability.md
     version: 1
 pending_human_gate: null
-# security-reviewer's independent review of authentication, authorization,
-# sensitive-data handling, input validation, persistence, configuration,
-# dependencies, logging and tests found no Critical or Major defect. One
-# Minor finding raised, non-blocking.
+# RECONCILIATION (skill: reconciliation-reviewer) produced
+# docs/reviews/reconciliation/US-001-reconciliation.md v1 (status APPROVED) and
+# docs/reconciliation/US-001-traceability.md v1 (status APPROVED) with verdict
+# PASS.
+#
+# Envelope validation: stage RECONCILIATION == current_stage; skill
+# reconciliation-reviewer == stages.RECONCILIATION.skill; story US-001; verdict
+# PASS (artifact-lifecycle.md §2); both artifact paths resolve to
+# artifact-paths.yaml `reconciliation` / `traceability`, owned by
+# reconciliation-reviewer. loop_back_stage / loop_back_key null (not a
+# CHANGES_REQUIRED verdict); blocking_issues empty. All 19 declared inputs
+# present and non-SUPERSEDED; HUMAN_SPEC_APPROVAL and HUMAN_PLAN_APPROVAL both
+# recorded in history.jsonl; implementation_verification v2 and security_review
+# v1 both current and PASS.
+#
+# Reconciliation result: 7/7 Acceptance Criteria RECONCILED (authoritative
+# matrix docs/reconciliation/US-001-traceability.md). Artifact chain current on
+# every forward edge; the backward-edge staleness notes (implementation-plan vs
+# plan-review v4; the design artifacts vs design-review v2; the two TEST_WRITING
+# artifacts vs implementation-verification v2) are non-substantive warnings, not
+# errors. Implementation is the approved plan v4 change set with three disclosed
+# Required Supporting Changes and no hidden refactoring. Independent evidence
+# gathered this stage (all exit 0): typecheck, lint, check:cycles, openapi:check,
+# prisma migrate status, npm run test (13 files / 73 passed / 0 errors),
+# audit:check (2 accepted). build / validate:harness reused (no tracked change).
+#
+# 0 Critical, 0 Major. One new Minor finding raised: RECONCILIATION:r-1 - branch
+# commit f2b2972 adds .codex/ and .agents/ to .gitignore, a repo-hygiene change
+# no US-001 artifact names and that plan v4 lists .gitignore as not changed;
+# human-authored, self-justified, zero behavioural effect; non-blocking, flagged
+# for the PR author. The accepted documentary inconsistency DESIGN_REVIEW:e-1
+# (spec v14 says four DomainError subclasses; AD-6 and src/lib/errors.ts say
+# five) is recorded in the reconciliation drift register and NOT re-raised -
+# its latest history event (line 40) is already ACCEPTED (human:KShust
+# 2026-09-03, US-001-findings-triage.md v2).
+#
+# The transition advances to PR_REVIEW (stage-map.yaml: RECONCILIATION verdict
+# PASS -> next). Open non-blocking count 6 -> 7.
 blocking_issues: []
-# Derived from history.jsonl: every id whose latest event says RAISED.
-# SECURITY_REVIEW:s-1 opens (RAISED). The set grows from 5 to 6.
+# Derived from history.jsonl: every id whose latest event says RAISED. This
+# transition raised RECONCILIATION:r-1 and closed nothing. Count 7.
 non_blocking_findings:
   - id: "IMPACT_ANALYSIS:R-7"
     severity: MINOR
@@ -46,12 +86,16 @@ non_blocking_findings:
   - id: "IMPLEMENTATION:G-1"
     severity: MINOR
     status: RAISED
-    summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate / validate fail when DATABASE_URL is unset and the generated client cannot be produced on a bare checkout; ci.yml adds a job-level DATABASE_URL and an explicit generate step, no project postinstall (it would break npm ci). Flag for a possible PC-1 note"
+    summary: "prisma.config.ts resolves env('DATABASE_URL') eagerly (D-2), so npx prisma generate / validate / migrate fail when DATABASE_URL is unset and the generated client cannot be produced on a bare checkout; reproduced at IMPLEMENTATION_VERIFICATION attempt 3. ci.yml adds a job-level DATABASE_URL and an explicit generate step, no project postinstall (it would break npm ci). Flag for a possible PC-1 note"
   - id: "SECURITY_REVIEW:s-1"
     severity: MINOR
     status: RAISED
     summary: "IMPLEMENTATION owes it (non-blocking): src/middleware/errorHandler.ts catch-all 500 branch returns the generic body without calling logger.error on the caught err, so an induced unhandled failure on the public register route leaves no server-side diagnostic trace beyond a detail-free pino-http completion line; fix is one redacted logger.error({ err }, 'unhandled error') plus an errorHandler.test.ts case"
+  - id: "RECONCILIATION:r-1"
+    severity: MINOR
+    status: RAISED
+    summary: "PR_PREPARATION / human owes it: branch commit f2b2972 adds .codex/ and .agents/ to .gitignore - a repo-hygiene change for external agent-runner harness ports that no US-001 artifact names and that plan v4 lists .gitignore as not changed. Human-authored with an in-diff rationale, zero behavioural effect. The PR author decides whether it rides in the US-001 PR (with a note) or splits to its own chore PR"
 started_at: 2026-08-31T00:00:00Z
-updated_at: 2026-09-03T23:48:55Z
+updated_at: 2026-09-04T06:13:25Z
 completed_at: null
 archived_at: null
